@@ -1,0 +1,6 @@
+{
+  "name": "DigiSwiss & Analytics",
+  "description": "Sistem pairing turnamen Swiss Digimon Card Game, pelaporan skor real-time, statistik performa, dan manajemen pemain.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
