@@ -114,6 +114,10 @@ object AnalyticsEngine {
             val oppId = if (isP1) m.player2Id else m.player1Id
             val opp = oppId?.let { playerMap[it] }
 
+            // Get deck info for this specific match
+            val oppArchetype = if (isP1) m.p2DeckArchetype else m.p1DeckArchetype
+            val oppColorStr = if (isP1) m.p2DeckColor else m.p1DeckColor
+
             val myGames = if (isP1) m.p1Score else m.p2Score
             val oppGames = if (isP1) m.p2Score else m.p1Score
             gamesWon += myGames
@@ -152,8 +156,10 @@ object AnalyticsEngine {
 
             // Matchup record
             if (opp != null) {
-                val oppColor = DigimonColor.fromString(opp.deckColor)
-                val key = Pair(oppColor, opp.deckArchetype)
+                val primaryColor = oppColorStr.split(",").firstOrNull()?.trim() ?: "UNKNOWN"
+                val oppColor = DigimonColor.fromString(primaryColor)
+                val arch = oppArchetype.ifEmpty { "Unknown" }
+                val key = Pair(oppColor, arch)
                 val current = matchupMap[key] ?: Pair(0, 0)
                 val newWins = if (isMyWin) current.first + 1 else current.first
                 val newLosses = if (!isMyWin && !m.isDraw) current.second + 1 else current.second
@@ -294,8 +300,12 @@ object AnalyticsEngine {
 
         // Meta deck distribution
         val metaCountMap = mutableMapOf<Pair<String, DigimonColor>, Int>()
+        
+        // We'll calculate meta share based on the latest player entity since this is for tournament-level summary
+        // For accurate per-match meta share, it would require aggregating distinct (archetype, color) from matches
         for (p in players) {
-            val color = DigimonColor.fromString(p.deckColor)
+            val primaryColor = p.deckColor.split(",").firstOrNull()?.trim() ?: "UNKNOWN"
+            val color = DigimonColor.fromString(primaryColor)
             val key = Pair(p.deckArchetype, color)
             metaCountMap[key] = (metaCountMap[key] ?: 0) + 1
         }
@@ -313,16 +323,17 @@ object AnalyticsEngine {
         val colorWonGames = mutableMapOf<DigimonColor, Int>().withDefault { 0 }
 
         for (m in reported) {
-            val p1 = playerMap[m.player1Id]
-            val p2 = m.player2Id?.let { playerMap[it] }
+            val p1ColorStr = m.p1DeckColor.ifEmpty { playerMap[m.player1Id]?.deckColor ?: "UNKNOWN" }
+            val p2ColorStr = m.p2DeckColor.ifEmpty { m.player2Id?.let { playerMap[it]?.deckColor } ?: "UNKNOWN" }
 
-            if (p1 != null) {
-                val c1 = DigimonColor.fromString(p1.deckColor)
-                colorTotalGames[c1] = colorTotalGames.getValue(c1) + m.p1Score + m.p2Score
-                colorWonGames[c1] = colorWonGames.getValue(c1) + m.p1Score
-            }
-            if (p2 != null) {
-                val c2 = DigimonColor.fromString(p2.deckColor)
+            val primaryC1 = p1ColorStr.split(",").firstOrNull()?.trim() ?: "UNKNOWN"
+            val c1 = DigimonColor.fromString(primaryC1)
+            colorTotalGames[c1] = colorTotalGames.getValue(c1) + m.p1Score + m.p2Score
+            colorWonGames[c1] = colorWonGames.getValue(c1) + m.p1Score
+
+            if (m.player2Id != null) {
+                val primaryC2 = p2ColorStr.split(",").firstOrNull()?.trim() ?: "UNKNOWN"
+                val c2 = DigimonColor.fromString(primaryC2)
                 colorTotalGames[c2] = colorTotalGames.getValue(c2) + m.p1Score + m.p2Score
                 colorWonGames[c2] = colorWonGames.getValue(c2) + m.p2Score
             }

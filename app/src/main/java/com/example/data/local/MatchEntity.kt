@@ -14,6 +14,10 @@ data class MatchEntity(
     val player2Id: Long?, // null for BYE
     val p1Score: Int = 0, // games won in match (0-2)
     val p2Score: Int = 0, // games won in match (0-2)
+    val p1DeckArchetype: String = "",
+    val p1DeckColor: String = "",
+    val p2DeckArchetype: String = "",
+    val p2DeckColor: String = "",
     val isDraw: Boolean = false,
     val isBye: Boolean = false,
     val winnerId: Long? = null,

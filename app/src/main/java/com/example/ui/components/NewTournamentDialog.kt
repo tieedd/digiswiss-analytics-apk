@@ -62,11 +62,12 @@ import com.example.ui.theme.TextMuted
 @Composable
 fun NewTournamentDialog(
     allPlayers: List<PlayerEntity> = emptyList(),
-    defaultOrganizer: String = "Toko A - DigiLabs Jakarta",
+    defaultOrganizer: String = "DigiSwiss Organizer",
     onDismiss: () -> Unit,
     onAddNewPlayerClick: () -> Unit = {},
     onConfirmCreate: (
         name: String,
+        dateText: String,
         totalRounds: Int,
         durationMins: Int,
         location: String,
@@ -79,6 +80,10 @@ fun NewTournamentDialog(
     var matchFormat by remember { mutableStateOf("BO3") }
     var totalRounds by remember { mutableIntStateOf(3) }
     var durationMins by remember { mutableIntStateOf(45) }
+    
+    // Add Date fields
+    val currentDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
+    var tournamentDate by remember { mutableStateOf(currentDate) }
 
     // Selection of admitted players
     val selectedPlayerIds = remember {
@@ -142,6 +147,24 @@ fun NewTournamentDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("tournament_name_input"),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = DigiCyan,
+                            unfocusedBorderColor = CyberCardBorder,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // Tournament Date
+                item {
+                    OutlinedTextField(
+                        value = tournamentDate,
+                        onValueChange = { tournamentDate = it },
+                        label = { Text("Tanggal Turnamen") },
+                        modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = DigiCyan,
@@ -449,6 +472,7 @@ fun NewTournamentDialog(
                                 if (name.isNotBlank()) {
                                     onConfirmCreate(
                                         name,
+                                        tournamentDate,
                                         totalRounds,
                                         durationMins,
                                         location,

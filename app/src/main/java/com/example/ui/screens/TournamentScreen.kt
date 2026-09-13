@@ -98,6 +98,7 @@ fun TournamentScreen(
     onNavigateToStandings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var playerToSubmitDeck by remember { mutableStateOf<PlayerEntity?>(null) }
     var matchToReport by remember { mutableStateOf<MatchEntity?>(null) }
     val playerMap = remember(players) { players.associateBy { it.id } }
 
@@ -174,6 +175,18 @@ fun TournamentScreen(
         }
     }
 
+    if (playerToSubmitDeck != null && tournament != null) {
+        com.example.ui.components.SubmitDeckDialog(
+            player = playerToSubmitDeck!!,
+            matches = matches,
+            onDismiss = { playerToSubmitDeck = null },
+            onConfirmSubmit = { archetype, colors ->
+                viewModel.setPlayerDeckForTournament(tournament.id, playerToSubmitDeck!!.id, archetype, colors)
+                playerToSubmitDeck = null
+            }
+        )
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -235,7 +248,7 @@ fun TournamentScreen(
                             }
                             Text(
                                 text = if (currentUser?.isAdmin == true) "masteradmin • Akses Penuh Sistem"
-                                else if (currentUser?.isOrganizer == true) "Penyelenggara: ${currentUser.affiliation.ifBlank { "Toko A" }}"
+                                else if (currentUser?.isOrganizer == true) "Penyelenggara: ${currentUser.affiliation.ifBlank { "DigiSwiss Organizer" }}"
                                 else if (loggedInPlayer != null) "Deck: ${loggedInPlayer.deckArchetype}"
                                 else "Login untuk akses fitur lengkap",
                                 color = TextMuted,
@@ -284,31 +297,10 @@ fun TournamentScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(130.dp)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.digi_tournament_banner_1789089862886),
-                    contentDescription = "Turnamen Digimon Arena",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    CyberNavyBg.copy(alpha = 0.85f),
-                                    CyberNavyBg
-                                )
-                            )
-                        )
-                )
-
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.Bottom
                 ) {
@@ -331,7 +323,7 @@ fun TournamentScreen(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Penyelenggara: ${tournament?.organizerName ?: "Toko A - DigiLabs Jakarta"}",
+                            text = "Penyelenggara: ${tournament?.organizerName ?: "DigiSwiss Organizer"}",
                             color = TextMuted,
                             fontSize = 11.sp
                         )
@@ -658,6 +650,79 @@ fun TournamentScreen(
                                 tint = Color(0xFF0F172A),
                                 modifier = Modifier.size(16.dp)
                             )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Tournament Completed View
+        if (tournament?.status == "COMPLETED" || (isAllCurrentRoundReported && tournament != null && selectedRound == tournament.totalRounds)) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = CyberCardElevated),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, DigiGold.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                tint = DigiGold,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Turnamen Selesai!",
+                                color = DigiGold,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Semua ronde telah selesai. Silakan update deck pemain jika pemain menggunakan deck yang berbeda di turnamen ini (untuk histori).",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        
+                        // List enrolled players to update deck
+                        if (currentUser?.isAdmin == true || currentUser?.isOrganizer == true || currentUser?.isPlayer == true) {
+                            val playersToShow = if (currentUser?.isPlayer == true) {
+                                listOfNotNull(loggedInPlayer)
+                            } else {
+                                tournament.enrolledList.mapNotNull { playerMap[it] }
+                            }
+                            
+                            playersToShow.forEach { p ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = p.name,
+                                        color = Color.White,
+                                        fontSize = 13.sp
+                                    )
+                                    OutlinedButton(
+                                        onClick = { playerToSubmitDeck = p },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text("Set Deck", fontSize = 11.sp, color = DigiCyan)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

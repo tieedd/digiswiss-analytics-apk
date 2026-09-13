@@ -334,6 +334,16 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun setPlayerDeckForTournament(tournamentId: Long, playerId: Long, archetype: String, colors: String) {
+        viewModelScope.launch {
+            repository.setPlayerDeckForTournament(tournamentId, playerId, archetype, colors)
+            showInAppNotification(
+                "Deck Tersimpan",
+                "Deck '$archetype' berhasil disimpan untuk statistik pemain di turnamen ini."
+            )
+        }
+    }
+
     // Admit / Enroll player to tournament
     fun enrollPlayer(tournamentId: Long, playerId: Long) {
         viewModelScope.launch {
@@ -355,25 +365,27 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun addNewPlayer(name: String, handle: String, deckArchetype: String, deckColor: String) {
+    fun addNewPlayer(name: String, handle: String, bandaiUid: String) {
         viewModelScope.launch {
             val newPlayer = PlayerEntity(
                 name = name.trim(),
                 handle = if (handle.startsWith("@")) handle.trim() else "@${handle.trim()}",
-                deckArchetype = deckArchetype.trim(),
-                deckColor = deckColor,
+                bandaiUid = bandaiUid.trim(),
+                deckArchetype = "Unknown",
+                deckColor = "UNKNOWN",
                 avatarId = (1..8).random()
             )
             repository.addPlayer(newPlayer)
             showInAppNotification(
                 "Peserta Terdaftar",
-                "${newPlayer.name} ($deckArchetype) berhasil didaftarkan ke turnamen."
+                "${newPlayer.name} berhasil didaftarkan ke turnamen."
             )
         }
     }
 
     fun createNewTournament(
         name: String,
+        dateText: String,
         totalRounds: Int,
         durationMins: Int,
         location: String,
@@ -382,11 +394,12 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     ) {
         val user = _currentUser.value
         val organizerId = if (user?.isOrganizer == true) user.id else null
-        val organizerName = user?.affiliation?.ifEmpty { user.fullName } ?: "Toko A - DigiLabs Jakarta"
+        val organizerName = user?.affiliation?.ifEmpty { user.fullName } ?: "DigiSwiss Organizer"
 
         viewModelScope.launch {
             repository.createNewTournament(
                 name = name,
+                dateText = dateText,
                 rounds = totalRounds,
                 roundDuration = durationMins,
                 location = location,

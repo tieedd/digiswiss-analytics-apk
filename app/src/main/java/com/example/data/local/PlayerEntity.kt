@@ -9,9 +9,10 @@ data class PlayerEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
-    val handle: String,
-    val deckArchetype: String,
-    val deckColor: String = "PURPLE", // Can be single or comma-separated e.g. "RED,PURPLE"
+    val handle: String, // Maps to Username Bandai+
+    val bandaiUid: String = "", // Maps to UID Bandai+
+    val deckArchetype: String = "",
+    val deckColor: String = "", // Can be single or comma-separated e.g. "RED,PURPLE"
     val totalTournaments: Int = 1,
     val totalWins: Int = 0,
     val totalLosses: Int = 0,

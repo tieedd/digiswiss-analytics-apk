@@ -37,221 +37,13 @@ class TournamentRepository(private val context: Context) {
                     role = "ADMIN",
                     fullName = "Master Administrator",
                     affiliation = "DigiSwiss Central Admin"
-                ),
-                UserEntity(
-                    username = "toko_a",
-                    password = "toko123",
-                    role = "ORGANIZER",
-                    fullName = "Toko A - DigiLabs Jakarta",
-                    affiliation = "Toko A"
-                ),
-                UserEntity(
-                    username = "toko_b",
-                    password = "toko123",
-                    role = "ORGANIZER",
-                    fullName = "Toko B - Surabaya TCG Hub",
-                    affiliation = "Toko B"
                 )
             )
             userDao.insertAll(defaultUsers)
         }
 
-        // 2. Seed players
-        if (playerDao.getPlayerCount() == 0) {
-            val initialPlayers = listOf(
-                PlayerEntity(
-                    name = "Marvin Wolf",
-                    handle = "@looga_tamer",
-                    deckArchetype = "Fenriloogamon OTK",
-                    deckColor = "PURPLE",
-                    totalTournaments = 5,
-                    totalWins = 14,
-                    totalLosses = 4,
-                    totalDraws = 1,
-                    trophies = 2,
-                    avatarId = 1
-                ),
-                PlayerEntity(
-                    name = "Taichi Yagami",
-                    handle = "@taichi_agumon",
-                    deckArchetype = "Red Hybrid / AncientGreymon",
-                    deckColor = "RED",
-                    totalTournaments = 6,
-                    totalWins = 16,
-                    totalLosses = 5,
-                    totalDraws = 0,
-                    trophies = 1,
-                    avatarId = 2
-                ),
-                PlayerEntity(
-                    name = "Takeru Takaishi",
-                    handle = "@patamon_tk",
-                    deckArchetype = "Yellow Vaccine / Magnamon X",
-                    deckColor = "YELLOW",
-                    totalTournaments = 4,
-                    totalWins = 10,
-                    totalLosses = 5,
-                    totalDraws = 2,
-                    trophies = 1,
-                    avatarId = 3
-                ),
-                PlayerEntity(
-                    name = "Yamato Ishida",
-                    handle = "@yamato_garuru",
-                    deckArchetype = "MirageGaogamon Bounce",
-                    deckColor = "BLUE",
-                    totalTournaments = 5,
-                    totalWins = 12,
-                    totalLosses = 6,
-                    totalDraws = 0,
-                    trophies = 1,
-                    avatarId = 4
-                ),
-                PlayerEntity(
-                    name = "Ken Ichijouji",
-                    handle = "@digimon_emperor",
-                    deckArchetype = "Imperialdramon Dragon-Mode",
-                    deckColor = "GREEN,BLUE",
-                    totalTournaments = 4,
-                    totalWins = 9,
-                    totalLosses = 7,
-                    totalDraws = 1,
-                    trophies = 0,
-                    avatarId = 5
-                ),
-                PlayerEntity(
-                    name = "Ruki Makino",
-                    handle = "@renamon_queen",
-                    deckArchetype = "Royal Knights Alliance",
-                    deckColor = "WHITE,YELLOW",
-                    totalTournaments = 5,
-                    totalWins = 11,
-                    totalLosses = 6,
-                    totalDraws = 0,
-                    trophies = 1,
-                    avatarId = 6
-                ),
-                PlayerEntity(
-                    name = "Beelzemon Fan",
-                    handle = "@impmon_blast",
-                    deckArchetype = "Demon Lords 7 Great",
-                    deckColor = "PURPLE",
-                    totalTournaments = 3,
-                    totalWins = 7,
-                    totalLosses = 6,
-                    totalDraws = 0,
-                    trophies = 0,
-                    avatarId = 7
-                ),
-                PlayerEntity(
-                    name = "Numemon Master",
-                    handle = "@slug_rush",
-                    deckArchetype = "Numemon Rush",
-                    deckColor = "BLACK,YELLOW",
-                    totalTournaments = 4,
-                    totalWins = 8,
-                    totalLosses = 7,
-                    totalDraws = 0,
-                    trophies = 0,
-                    avatarId = 8
-                )
-            )
-            playerDao.insertAll(initialPlayers)
-
-            // Seed player login for Taichi
-            val taichi = playerDao.getRegisteredPlayersList().find { it.name.contains("Taichi") }
-            if (taichi != null && userDao.getUserByUsername("taichi") == null) {
-                userDao.insertUser(
-                    UserEntity(
-                        username = "taichi",
-                        password = "taichi123",
-                        role = "PLAYER",
-                        fullName = "Taichi Yagami",
-                        affiliation = "DigiDestined",
-                        associatedPlayerId = taichi.id
-                    )
-                )
-            }
-        }
-
-        // 3. Seed tournament if needed
-        if (tournamentDao.getTournamentCount() == 0) {
-            val tournamentId = tournamentDao.insertTournament(
-                TournamentEntity(
-                    name = "DigiFest Store Championship 2026",
-                    dateText = "Hari Ini, 14:00 WIB",
-                    totalRounds = 3,
-                    currentRound = 1,
-                    status = "ACTIVE",
-                    roundDurationMinutes = 45,
-                    location = "Toko A - DigiLabs Jakarta",
-                    matchFormat = "BO3",
-                    organizerName = "Toko A - DigiLabs Jakarta"
-                )
-            )
-
-            val players = playerDao.getPlayersByIds((1L..8L).toList())
-            if (players.size >= 8) {
-                val round1Matches = listOf(
-                    MatchEntity(
-                        tournamentId = tournamentId,
-                        roundNumber = 1,
-                        tableNumber = 1,
-                        player1Id = players[0].id,
-                        player2Id = players[1].id,
-                        p1Score = 2,
-                        p2Score = 1,
-                        isDraw = false,
-                        winnerId = players[0].id,
-                        isReported = true,
-                        matchDurationMinutes = 38,
-                        firstTurnPlayerId = players[0].id
-                    ),
-                    MatchEntity(
-                        tournamentId = tournamentId,
-                        roundNumber = 1,
-                        tableNumber = 2,
-                        player1Id = players[2].id,
-                        player2Id = players[3].id,
-                        p1Score = 2,
-                        p2Score = 0,
-                        isDraw = false,
-                        winnerId = players[2].id,
-                        isReported = true,
-                        matchDurationMinutes = 26,
-                        firstTurnPlayerId = players[2].id
-                    ),
-                    MatchEntity(
-                        tournamentId = tournamentId,
-                        roundNumber = 1,
-                        tableNumber = 3,
-                        player1Id = players[4].id,
-                        player2Id = players[5].id,
-                        p1Score = 1,
-                        p2Score = 2,
-                        isDraw = false,
-                        winnerId = players[5].id,
-                        isReported = true,
-                        matchDurationMinutes = 42,
-                        firstTurnPlayerId = players[4].id
-                    ),
-                    MatchEntity(
-                        tournamentId = tournamentId,
-                        roundNumber = 1,
-                        tableNumber = 4,
-                        player1Id = players[6].id,
-                        player2Id = players[7].id,
-                        p1Score = 0,
-                        p2Score = 0,
-                        isDraw = false,
-                        winnerId = null,
-                        isReported = false,
-                        matchDurationMinutes = 0
-                    )
-                )
-                matchDao.insertMatches(round1Matches)
-            }
-        }
+        // 2. No more dummy players
+        // 3. No more dummy tournament
     }
 
     // --- Authentication & User Operations ---
@@ -536,12 +328,13 @@ class TournamentRepository(private val context: Context) {
 
     suspend fun createNewTournament(
         name: String,
+        dateText: String,
         rounds: Int,
         roundDuration: Int,
         location: String,
         matchFormat: String = "BO3",
         organizerId: Long? = null,
-        organizerName: String = "Toko A - DigiLabs Jakarta",
+        organizerName: String = "DigiSwiss Organizer",
         selectedPlayerIds: List<Long>? = null
     ): Long = withContext(Dispatchers.IO) {
         val active = tournamentDao.getActiveTournament()
@@ -553,7 +346,7 @@ class TournamentRepository(private val context: Context) {
 
         val newTourney = TournamentEntity(
             name = name,
-            dateText = "Baru Saja",
+            dateText = dateText,
             totalRounds = rounds,
             currentRound = 1,
             status = "ACTIVE",
@@ -631,6 +424,28 @@ class TournamentRepository(private val context: Context) {
 
     suspend fun updateMatch(match: MatchEntity) = withContext(Dispatchers.IO) {
         matchDao.updateMatch(match)
+    }
+
+    suspend fun setPlayerDeckForTournament(tournamentId: Long, playerId: Long, archetype: String, colors: String) = withContext(Dispatchers.IO) {
+        val matches = matchDao.getMatchesForTournament(tournamentId)
+        matches.forEach { match ->
+            var updated = match
+            if (match.player1Id == playerId) {
+                updated = updated.copy(p1DeckArchetype = archetype, p1DeckColor = colors)
+            }
+            if (match.player2Id == playerId) {
+                updated = updated.copy(p2DeckArchetype = archetype, p2DeckColor = colors)
+            }
+            if (updated != match) {
+                matchDao.updateMatch(updated)
+            }
+        }
+
+        // Also update their main PlayerEntity as their latest deck
+        val player = playerDao.getPlayerById(playerId)
+        if (player != null) {
+            playerDao.updatePlayer(player.copy(deckArchetype = archetype, deckColor = colors))
+        }
     }
 
     suspend fun deleteTournament(tournamentId: Long) = withContext(Dispatchers.IO) {

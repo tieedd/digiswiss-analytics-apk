@@ -56,23 +56,12 @@ import com.example.ui.theme.TextMuted
 @Composable
 fun AddPlayerDialog(
     onDismiss: () -> Unit,
-    onConfirmAdd: (name: String, handle: String, deckArchetype: String, deckColor: String) -> Unit
+    onConfirmAdd: (name: String, handle: String, bandaiUid: String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var handle by remember { mutableStateOf("") }
-    var deckArchetype by remember { mutableStateOf("") }
-    var selectedColor by remember { mutableStateOf(DigimonColor.RED) }
+    var bandaiUid by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    val presetDecks = listOf(
-        "Red Hybrid" to DigimonColor.RED,
-        "MirageGaogamon" to DigimonColor.BLUE,
-        "Yellow Vaccine" to DigimonColor.YELLOW,
-        "Imperialdramon" to DigimonColor.GREEN,
-        "Machinedramon" to DigimonColor.BLACK,
-        "Fenriloogamon" to DigimonColor.PURPLE,
-        "Diaboromon" to DigimonColor.WHITE
-    )
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -140,7 +129,7 @@ fun AddPlayerDialog(
                 OutlinedTextField(
                     value = handle,
                     onValueChange = { handle = it },
-                    label = { Text("ID Komunitas / Handle (misal: @agumon)", color = TextMuted) },
+                    label = { Text("Username Bandai+", color = TextMuted) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -155,15 +144,15 @@ fun AddPlayerDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Deck Archetype input
+                // UID input
                 OutlinedTextField(
-                    value = deckArchetype,
-                    onValueChange = { deckArchetype = it; errorMessage = null },
-                    label = { Text("Nama Deck Archetype Digimon TCG", color = TextMuted) },
+                    value = bandaiUid,
+                    onValueChange = { bandaiUid = it; errorMessage = null },
+                    label = { Text("UID Bandai+ (10 digit angka)", color = TextMuted) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("player_deck_input"),
+                        .testTag("player_uid_input"),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = DigiCyan,
                         unfocusedBorderColor = CyberCardBorder,
@@ -171,84 +160,6 @@ fun AddPlayerDialog(
                         unfocusedTextColor = Color.White
                     )
                 )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Quick Deck Presets
-                Text(
-                    text = "Pilih Preset Meta Cepat:",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    presetDecks.forEach { (presetName, presetColor) ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(CyberCardElevated)
-                                .border(1.dp, presetColor.badgeColor.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                                .clickable {
-                                    deckArchetype = presetName
-                                    selectedColor = presetColor
-                                }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = presetName,
-                                color = presetColor.badgeColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Deck Color Picker
-                Text(
-                    text = "Warna Utama Deck Digimon:",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    DigimonColor.entries.forEach { color ->
-                        val isSelected = selectedColor == color
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(color.badgeColor)
-                                .border(
-                                    if (isSelected) 3.dp else 1.dp,
-                                    if (isSelected) Color.White else Color.Transparent,
-                                    CircleShape
-                                )
-                                .clickable { selectedColor = color },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White)
-                                )
-                            }
-                        }
-                    }
-                }
 
                 if (errorMessage != null) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -280,12 +191,16 @@ fun AddPlayerDialog(
                                 errorMessage = "Nama pemain tidak boleh kosong."
                                 return@Button
                             }
-                            if (deckArchetype.isBlank()) {
-                                errorMessage = "Archetype deck tidak boleh kosong."
+                            if (bandaiUid.isBlank()) {
+                                errorMessage = "UID Bandai+ tidak boleh kosong."
+                                return@Button
+                            }
+                            if (bandaiUid.length != 10 || !bandaiUid.all { it.isDigit() }) {
+                                errorMessage = "UID Bandai+ harus berupa 10 digit angka."
                                 return@Button
                             }
                             val finalHandle = if (handle.isBlank()) "@${name.lowercase().replace(" ", "")}" else handle
-                            onConfirmAdd(name, finalHandle, deckArchetype, selectedColor.name)
+                            onConfirmAdd(name, finalHandle, bandaiUid)
                         },
                         modifier = Modifier
                             .weight(1.5f)

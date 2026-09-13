@@ -16,7 +16,7 @@ data class TournamentEntity(
     val location: String = "DigiLabs Community Center",
     val matchFormat: String = "BO3", // "BO1" or "BO3"
     val organizerId: Long? = null,
-    val organizerName: String = "Toko A - DigiLabs Jakarta",
+    val organizerName: String = "DigiSwiss Organizer",
     val enrolledPlayerIds: String = "", // Comma-separated list of admitted player IDs (if empty, all active players)
     val droppedPlayerIds: String = "" // Comma-separated list of dropped player IDs
 ) {

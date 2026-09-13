@@ -53,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.MatchEntity
@@ -87,7 +88,7 @@ fun AnalyticsScreen(
         mutableStateOf(players.firstOrNull()?.id ?: 0L)
     }
 
-    val storeName = activeTournament?.organizerName ?: "Toko A - DigiLabs Jakarta"
+    val storeName = activeTournament?.organizerName ?: "DigiSwiss Organizer"
     val filteredMatches = remember(scopeFilter, matches, allMatches, activeTournament, allTournaments) {
         when (scopeFilter) {
             "CURRENT" -> {
@@ -97,7 +98,7 @@ fun AnalyticsScreen(
                 } else matches
             }
             "STORE" -> {
-                val storeKeywords = listOf("Toko A", "DigiLabs", "Store")
+                val storeKeywords = listOf(storeName)
                 val storeTourneyIds = allTournaments.filter { t ->
                     storeKeywords.any { kw -> t.organizerName.contains(kw, ignoreCase = true) || t.location.contains(kw, ignoreCase = true) }
                 }.map { it.id }.toSet()
@@ -160,7 +161,7 @@ fun AnalyticsScreen(
                 ) {
                     val scopes = listOf(
                         Triple("CURRENT", "Turnamen Ini", activeTournament?.name?.take(18) ?: "Aktif"),
-                        Triple("STORE", "Toko Penyelenggara", "Toko A / DigiLabs"),
+                        Triple("STORE", "Toko Penyelenggara", storeName),
                         Triple("ALL", "Semua Turnamen", "Global Archive")
                     )
                     scopes.forEach { (key, title, subtitle) ->
@@ -525,7 +526,10 @@ fun AnalyticsScreen(
                                                 text = diag.title,
                                                 color = borderColor,
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
+                                                fontSize = 13.sp,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(end = 8.dp)
                                             )
                                             Box(
                                                 modifier = Modifier
@@ -610,14 +614,19 @@ fun AnalyticsScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                            ) {
                                                 DigimonColorBadge(colorName = m.opponentColor.name, showLabel = false)
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
                                                     text = m.opponentArchetype,
                                                     color = Color.White,
                                                     fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Medium
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                             Text(

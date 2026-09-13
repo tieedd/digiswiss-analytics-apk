@@ -66,7 +66,7 @@ fun PlayersScreen(
     players: List<PlayerEntity>,
     currentUser: UserEntity?,
     onPlayerClick: (PlayerEntity) -> Unit,
-    onAddNewPlayer: (name: String, handle: String, deckArchetype: String, deckColor: String) -> Unit,
+    onAddNewPlayer: (name: String, handle: String, bandaiUid: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -87,8 +87,8 @@ fun PlayersScreen(
     if (showAddDialog) {
         AddPlayerDialog(
             onDismiss = { showAddDialog = false },
-            onConfirmAdd = { name, handle, deckArchetype, deckColor ->
-                onAddNewPlayer(name, handle, deckArchetype, deckColor)
+            onConfirmAdd = { name, handle, bandaiUid ->
+                onAddNewPlayer(name, handle, bandaiUid)
                 showAddDialog = false
             }
         )
@@ -146,7 +146,7 @@ fun PlayersScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Daftar Baru",
+                                    text = "Tambah Pemain",
                                     color = Color(0xFF0F172A),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp

@@ -208,12 +208,13 @@ fun DigiSwissApp(
     if (showNewTournamentDialog) {
         NewTournamentDialog(
             allPlayers = players,
-            defaultOrganizer = if (currentUser?.isOrganizer == true) currentUser?.fullName ?: "Toko A" else "Toko A - DigiLabs Jakarta",
+            defaultOrganizer = if (currentUser?.isOrganizer == true) currentUser?.fullName ?: "DigiSwiss Organizer" else "DigiSwiss Organizer",
             onDismiss = { showNewTournamentDialog = false },
             onAddNewPlayerClick = { showAddPlayerDialog = true },
-            onConfirmCreate = { name, totalRounds, durationMins, location, matchFormat, selectedPlayerIds ->
+            onConfirmCreate = { name, dateText, totalRounds, durationMins, location, matchFormat, selectedPlayerIds ->
                 viewModel.createNewTournament(
                     name = name,
+                    dateText = dateText,
                     totalRounds = totalRounds,
                     durationMins = durationMins,
                     location = location,
@@ -228,8 +229,8 @@ fun DigiSwissApp(
     if (showAddPlayerDialog) {
         AddPlayerDialog(
             onDismiss = { showAddPlayerDialog = false },
-            onConfirmAdd = { name, handle, deckArchetype, deckColor ->
-                viewModel.addNewPlayer(name, handle, deckArchetype, deckColor)
+            onConfirmAdd = { name, handle, bandaiUid ->
+                viewModel.addNewPlayer(name, handle, bandaiUid)
                 showAddPlayerDialog = false
             }
         )
@@ -465,8 +466,8 @@ fun DigiSwissApp(
                         onPlayerClick = { player ->
                             viewModel.selectPlayerForDetails(player)
                         },
-                        onAddNewPlayer = { name, handle, deckArchetype, deckColor ->
-                            viewModel.addNewPlayer(name, handle, deckArchetype, deckColor)
+                        onAddNewPlayer = { name, handle, bandaiUid ->
+                            viewModel.addNewPlayer(name, handle, bandaiUid)
                         }
                     )
                 }
