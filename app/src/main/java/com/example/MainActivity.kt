@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,8 +61,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,11 +83,15 @@ import com.example.ui.components.GameHistoryDialog
 import com.example.ui.components.LoginAndRegisterDialog
 import com.example.ui.components.NewTournamentDialog
 import com.example.ui.components.AddPlayerDialog
+import com.example.ui.components.EditPlayerDialog
 import com.example.ui.components.PlayerProfileDialog
 import com.example.ui.screens.AnalyticsScreen
+import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.PlayersScreen
 import com.example.ui.screens.StandingsScreen
 import com.example.ui.screens.TournamentScreen
+import com.example.data.local.PlayerEntity
+import androidx.compose.material3.CircularProgressIndicator
 import com.example.ui.theme.CyberCardBorder
 import com.example.ui.theme.CyberCardElevated
 import com.example.ui.theme.CyberCardSurface
@@ -144,9 +151,10 @@ fun DigiSwissApp(
     var showHistoryDialog by remember { mutableStateOf(false) }
     var showLoginRegisterDialog by remember { mutableStateOf(false) }
     var showAdminManagementDialog by remember { mutableStateOf(false) }
-
+    var playerToEdit by remember { mutableStateOf<PlayerEntity?>(null) }
 
     val currentUser by viewModel.currentUser.collectAsState()
+    val isAuthChecking by viewModel.isAuthChecking.collectAsState()
     val allUsers by viewModel.allUsersFlow.collectAsState()
     val activeTournament by viewModel.activeTournamentFlow.collectAsState()
     val allTournaments by viewModel.allTournamentsFlow.collectAsState()
@@ -159,9 +167,32 @@ fun DigiSwissApp(
     val inAppNotification by viewModel.inAppNotification.collectAsState()
     val selectedPlayer by viewModel.selectedPlayer.collectAsState()
 
+    // Loading session gate
+    if (isAuthChecking) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(CyberNavyBg),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = DigiCyan)
+        }
+        return
+    }
 
-
-
+    // Main Login Screen Gate if user is not authenticated
+    if (currentUser == null) {
+        LoginScreen(
+            onLogin = { username, pass, onError ->
+                viewModel.login(username, pass) { success, errorMsg ->
+                    if (!success) {
+                        onError(errorMsg ?: "Gagal masuk. Periksa kembali username dan password.")
+                    }
+                }
+            }
+        )
+        return
+    }
 
     if (showHistoryDialog) {
         GameHistoryDialog(
@@ -241,7 +272,29 @@ fun DigiSwissApp(
             player = selectedPlayer!!,
             allPlayers = players,
             matches = matches,
-            onDismiss = { viewModel.selectPlayerForDetails(null) }
+            onDismiss = { viewModel.selectPlayerForDetails(null) },
+            onEditClick = { player ->
+                playerToEdit = player
+            }
+        )
+    }
+
+    if (playerToEdit != null) {
+        EditPlayerDialog(
+            player = playerToEdit!!,
+            onDismiss = { playerToEdit = null },
+            onConfirmSave = { name, handle, bandaiUid, archetype, color ->
+                val updated = playerToEdit!!.copy(
+                    name = name,
+                    handle = handle,
+                    bandaiUid = bandaiUid,
+                    deckArchetype = archetype,
+                    deckColor = color
+                )
+                viewModel.updatePlayer(updated)
+                viewModel.selectPlayerForDetails(updated)
+                playerToEdit = null
+            }
         )
     }
 
@@ -286,17 +339,18 @@ fun DigiSwissApp(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(DigiCyan.copy(alpha = 0.18f))
-                                .border(1.dp, DigiCyan, RoundedCornerShape(8.dp)),
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .border(1.5.dp, DigiGold, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "DG",
-                                color = DigiCyan,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 14.sp
+                            Image(
+                                painter = painterResource(id = R.drawable.digiswiss_main_badge_1789440902605),
+                                contentDescription = "DigiSwiss Main Logo",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
                             )
                         }
 

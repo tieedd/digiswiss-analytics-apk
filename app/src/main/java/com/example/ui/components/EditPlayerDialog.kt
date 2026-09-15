@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,14 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.data.local.PlayerEntity
 import com.example.data.model.DigimonColor
 import com.example.ui.theme.CyberCardBorder
 import com.example.ui.theme.CyberCardElevated
@@ -57,13 +58,16 @@ import com.example.ui.theme.TextMuted
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AddPlayerDialog(
+fun EditPlayerDialog(
+    player: PlayerEntity,
     onDismiss: () -> Unit,
-    onConfirmAdd: (name: String, handle: String, bandaiUid: String) -> Unit
+    onConfirmSave: (name: String, handle: String, bandaiUid: String, archetype: String, color: String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var handle by remember { mutableStateOf("") }
-    var bandaiUid by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(player.name) }
+    var handle by remember { mutableStateOf(if (player.handle == "-") "" else player.handle.removePrefix("@")) }
+    var bandaiUid by remember { mutableStateOf(if (player.bandaiUid == "-") "" else player.bandaiUid) }
+    var deckArchetype by remember { mutableStateOf(if (player.deckArchetype == "Unknown") "" else player.deckArchetype) }
+    var selectedColor by remember { mutableStateOf(if (player.deckColor == "UNKNOWN") "RED" else player.deckColor) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -71,10 +75,10 @@ fun AddPlayerDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp)
-                .testTag("add_player_dialog"),
+                .testTag("edit_player_dialog"),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, CyberCardBorder)
+            border = BorderStroke(1.dp, CyberCardBorder)
         ) {
             Column(
                 modifier = Modifier
@@ -89,14 +93,14 @@ fun AddPlayerDialog(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            Icons.Default.PersonAdd,
+                            Icons.Default.Edit,
                             contentDescription = null,
                             tint = DigiCyan,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Pendaftaran Peserta",
+                            text = "Edit Profil Peserta",
                             color = Color.White,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
@@ -114,11 +118,10 @@ fun AddPlayerDialog(
                     value = name,
                     onValueChange = { name = it; errorMessage = null },
                     label = { Text("Nama Lengkap / Nickname *", color = TextMuted) },
-                    placeholder = { Text("Contoh: Tai Kamiya", color = TextMuted.copy(alpha = 0.5f)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("player_name_input"),
+                        .testTag("edit_player_name_input"),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = DigiCyan,
                         unfocusedBorderColor = CyberCardBorder,
@@ -145,7 +148,7 @@ fun AddPlayerDialog(
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("player_handle_input"),
+                        .testTag("edit_player_handle_input"),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = DigiCyan,
                         unfocusedBorderColor = CyberCardBorder,
@@ -160,7 +163,6 @@ fun AddPlayerDialog(
                 OutlinedTextField(
                     value = bandaiUid,
                     onValueChange = { input ->
-                        // Only allow digits and maximum 10 digits
                         if (input.length <= 10 && input.all { it.isDigit() }) {
                             bandaiUid = input
                             errorMessage = null
@@ -183,7 +185,7 @@ fun AddPlayerDialog(
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("player_uid_input"),
+                        .testTag("edit_player_uid_input"),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = DigiCyan,
                         unfocusedBorderColor = CyberCardBorder,
@@ -191,6 +193,70 @@ fun AddPlayerDialog(
                         unfocusedTextColor = Color.White
                     )
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Deck Archetype
+                OutlinedTextField(
+                    value = deckArchetype,
+                    onValueChange = { deckArchetype = it },
+                    label = { Text("Archetype Deck (Opsional)", color = TextMuted) },
+                    placeholder = { Text("Contoh: WarGreymon OTK", color = TextMuted.copy(alpha = 0.5f)) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("edit_player_deck_input"),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = DigiCyan,
+                        unfocusedBorderColor = CyberCardBorder,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Color Selection
+                Text(
+                    text = "Warna Utama Deck:",
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val colors = listOf(
+                        "RED" to "Merah",
+                        "BLUE" to "Biru",
+                        "YELLOW" to "Kuning",
+                        "GREEN" to "Hijau",
+                        "PURPLE" to "Ungu",
+                        "BLACK" to "Hitam",
+                        "WHITE" to "Putih"
+                    )
+                    colors.forEach { (colorKey, colorLabel) ->
+                        val isSel = selectedColor.contains(colorKey)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSel) DigiCyan.copy(alpha = 0.2f) else CyberCardElevated)
+                                .border(1.dp, if (isSel) DigiCyan else CyberCardBorder, RoundedCornerShape(6.dp))
+                                .clickable { selectedColor = colorKey }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = colorLabel,
+                                color = if (isSel) DigiCyan else Color.LightGray,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
 
                 if (errorMessage != null) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -212,7 +278,7 @@ fun AddPlayerDialog(
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CyberCardBorder)
+                        border = BorderStroke(1.dp, CyberCardBorder)
                     ) {
                         Text("Batal", color = Color.Gray)
                     }
@@ -230,17 +296,18 @@ fun AddPlayerDialog(
                                     return@Button
                                 }
                             }
-                            val finalHandle = if (handle.isBlank()) "-" else handle.trim()
+                            val finalHandle = if (handle.isBlank()) "-" else if (handle.startsWith("@")) handle.trim() else "@${handle.trim()}"
                             val finalUid = if (trimmedUid.isBlank()) "-" else trimmedUid
-                            onConfirmAdd(name.trim(), finalHandle, finalUid)
+                            val finalArchetype = if (deckArchetype.isBlank()) "Unknown" else deckArchetype.trim()
+                            onConfirmSave(name.trim(), finalHandle, finalUid, finalArchetype, selectedColor)
                         },
                         modifier = Modifier
                             .weight(1.5f)
-                            .testTag("submit_add_player_btn"),
+                            .testTag("submit_edit_player_btn"),
                         colors = ButtonDefaults.buttonColors(containerColor = DigiCyan)
                     ) {
                         Text(
-                            "Daftarkan Peserta",
+                            "Simpan Perubahan",
                             color = Color(0xFF0F172A),
                             fontWeight = FontWeight.Bold
                         )

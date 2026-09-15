@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.MatchEntity
@@ -36,10 +37,14 @@ data class InAppAlert(
 
 class TournamentViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = TournamentRepository(application.applicationContext)
+    private val authPrefs = application.getSharedPreferences("digiswiss_session", Context.MODE_PRIVATE)
 
     // Current logged in user
     private val _currentUser = MutableStateFlow<UserEntity?>(null)
     val currentUser: StateFlow<UserEntity?> = _currentUser.asStateFlow()
+
+    private val _isAuthChecking = MutableStateFlow(true)
+    val isAuthChecking: StateFlow<Boolean> = _isAuthChecking.asStateFlow()
 
     private val _selectedRound = MutableStateFlow(1)
     private val _selectedPlayer = MutableStateFlow<PlayerEntity?>(null)
@@ -70,9 +75,15 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     init {
         viewModelScope.launch {
             repository.checkAndSeedInitialData()
-            // Auto login default as masteradmin for first launch convenience
-            val admin = repository.login("masteradmin", "masteradmin")
-            _currentUser.value = admin
+            // Check session persistence
+            val savedUserId = authPrefs.getLong("session_user_id", -1L)
+            if (savedUserId != -1L) {
+                val user = repository.getUserById(savedUserId)
+                if (user != null) {
+                    _currentUser.value = user
+                }
+            }
+            _isAuthChecking.value = false
         }
 
         viewModelScope.launch {
@@ -126,9 +137,10 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     // --- Authentication ---
     fun login(username: String, password: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            val user = repository.login(username, password)
+            val user = repository.login(username.trim(), password)
             if (user != null) {
                 _currentUser.value = user
+                authPrefs.edit().putLong("session_user_id", user.id).apply()
                 showInAppNotification("Login Berhasil", "Selamat datang, ${user.fullName} (${user.role})")
                 onResult(true, null)
             } else {
@@ -139,6 +151,7 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
 
     fun logout() {
         _currentUser.value = null
+        authPrefs.edit().remove("session_user_id").apply()
         showInAppNotification("Logout", "Anda telah keluar dari akun.")
     }
 
@@ -367,10 +380,12 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
 
     fun addNewPlayer(name: String, handle: String, bandaiUid: String) {
         viewModelScope.launch {
+            val cleanHandle = if (handle.isBlank() || handle.trim() == "-") "-" else if (handle.startsWith("@")) handle.trim() else "@${handle.trim()}"
+            val cleanUid = if (bandaiUid.isBlank() || bandaiUid.trim() == "-") "-" else bandaiUid.trim()
             val newPlayer = PlayerEntity(
                 name = name.trim(),
-                handle = if (handle.startsWith("@")) handle.trim() else "@${handle.trim()}",
-                bandaiUid = bandaiUid.trim(),
+                handle = cleanHandle,
+                bandaiUid = cleanUid,
                 deckArchetype = "Unknown",
                 deckColor = "UNKNOWN",
                 avatarId = (1..8).random()
@@ -381,6 +396,44 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
                 "${newPlayer.name} berhasil didaftarkan ke turnamen."
             )
         }
+    }
+
+    fun updatePlayer(
+        playerId: Long,
+        name: String,
+        handle: String,
+        bandaiUid: String,
+        deckArchetype: String = "",
+        deckColor: String = ""
+    ) {
+        viewModelScope.launch {
+            val existing = repository.getPlayerById(playerId) ?: return@launch
+            val cleanHandle = if (handle.isBlank() || handle.trim() == "-") "-" else if (handle.startsWith("@")) handle.trim() else "@${handle.trim()}"
+            val cleanUid = if (bandaiUid.isBlank() || bandaiUid.trim() == "-") "-" else bandaiUid.trim()
+            val updated = existing.copy(
+                name = name.trim(),
+                handle = cleanHandle,
+                bandaiUid = cleanUid,
+                deckArchetype = if (deckArchetype.isNotBlank()) deckArchetype.trim() else existing.deckArchetype,
+                deckColor = if (deckColor.isNotBlank()) deckColor.trim() else existing.deckColor
+            )
+            repository.updatePlayer(updated)
+            if (_selectedPlayer.value?.id == playerId) {
+                _selectedPlayer.value = updated
+            }
+            showInAppNotification("Data Diperbarui", "Data peserta ${updated.name} berhasil disimpan.")
+        }
+    }
+
+    fun updatePlayer(player: PlayerEntity) {
+        updatePlayer(
+            playerId = player.id,
+            name = player.name,
+            handle = player.handle,
+            bandaiUid = player.bandaiUid,
+            deckArchetype = player.deckArchetype,
+            deckColor = player.deckColor
+        )
     }
 
     fun createNewTournament(

@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.SportsScore
@@ -55,7 +56,8 @@ fun PlayerProfileDialog(
     player: PlayerEntity,
     allPlayers: List<PlayerEntity>,
     matches: List<MatchEntity>,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onEditClick: ((PlayerEntity) -> Unit)? = null
 ) {
     val playerMap = remember(allPlayers) { allPlayers.associateBy { it.id } }
     val playerMatches = remember(matches, player.id) {
@@ -93,7 +95,10 @@ fun PlayerProfileDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
@@ -119,16 +124,37 @@ fun PlayerProfileDialog(
                                 fontWeight = FontWeight.Black,
                                 fontSize = 18.sp
                             )
-                            Text(
-                                text = player.handle,
-                                color = TextMuted,
-                                fontSize = 12.sp
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = player.handle,
+                                    color = TextMuted,
+                                    fontSize = 12.sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "• UID: ${if (player.bandaiUid.isNotBlank()) player.bandaiUid else "-"}",
+                                    color = if (player.bandaiUid.isNotBlank() && player.bandaiUid != "-") DigiCyan else TextMuted,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (player.bandaiUid.isNotBlank() && player.bandaiUid != "-") FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            }
                         }
                     }
 
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Tutup", tint = Color.Gray)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (onEditClick != null) {
+                            IconButton(onClick = { onEditClick(player) }) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "Edit Data Pemain",
+                                    tint = DigiCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Tutup", tint = Color.Gray)
+                        }
                     }
                 }
 

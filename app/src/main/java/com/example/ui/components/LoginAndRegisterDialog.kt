@@ -32,8 +32,8 @@ fun LoginAndRegisterDialog(
     onLogin: (username: String, pass: String, onError: (String) -> Unit) -> Unit
 ) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var loginUsername by remember { mutableStateOf("masteradmin") }
-    var loginPassword by remember { mutableStateOf("masteradmin") }
+    var loginUsername by remember { mutableStateOf("") }
+    var loginPassword by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(

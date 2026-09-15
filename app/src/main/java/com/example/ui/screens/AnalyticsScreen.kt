@@ -551,28 +551,6 @@ fun AnalyticsScreen(
                                             color = Color.White,
                                             fontSize = 12.sp
                                         )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(CyberCardSurface)
-                                                .padding(8.dp)
-                                        ) {
-                                            Row(verticalAlignment = Alignment.Top) {
-                                                Text(
-                                                    text = "Saran Taktis: ",
-                                                    color = DigiCyan,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 11.sp
-                                                )
-                                                Text(
-                                                    text = diag.recommendation,
-                                                    color = TextMuted,
-                                                    fontSize = 11.sp
-                                                )
-                                            }
-                                        }
                                     }
                                 }
                             }

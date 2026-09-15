@@ -364,47 +364,102 @@ fun NewTournamentDialog(
 
                 // Player Admission Selection (Memilih pemain yang diikutsertakan)
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Group, contentDescription = null, tint = DigiCyan, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Pilih Pemain Diikutsertakan (${selectedPlayerIds.size}/${allPlayers.size}):",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Group,
+                                    contentDescription = null,
+                                    tint = DigiCyan,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Pemain Diikutsertakan",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // Counter Badge
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(DigiCyan.copy(alpha = 0.15f))
+                                    .border(1.dp, DigiCyan.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "${selectedPlayerIds.size}/${allPlayers.size} Dipilih",
+                                    color = DigiCyan,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Pemain Baru",
-                                color = DigiGold,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable { onAddNewPlayerClick() }
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = if (selectedPlayerIds.size == allPlayers.size) "Lepas Semua" else "Pilih Semua",
-                                color = DigiCyan,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable {
-                                    if (selectedPlayerIds.size == allPlayers.size) {
-                                        selectedPlayerIds.clear()
-                                    } else {
-                                        selectedPlayerIds.clear()
-                                        selectedPlayerIds.addAll(allPlayers.map { it.id })
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Actions Row: Pemain Baru & Pilih/Lepas Semua
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // "+ Pemain Baru" button
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(DigiGold.copy(alpha = 0.15f))
+                                    .border(1.dp, DigiGold.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                    .clickable { onAddNewPlayerClick() }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = "+ Pemain Baru",
+                                    color = DigiGold,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // "Pilih Semua" / "Lepas Semua" button
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(CyberCardElevated)
+                                    .border(1.dp, CyberCardBorder, RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        if (selectedPlayerIds.size == allPlayers.size) {
+                                            selectedPlayerIds.clear()
+                                        } else {
+                                            selectedPlayerIds.clear()
+                                            selectedPlayerIds.addAll(allPlayers.map { it.id })
+                                        }
                                     }
-                                }
-                            )
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = if (selectedPlayerIds.size == allPlayers.size) "Lepas Semua" else "Pilih Semua",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
 
                 // List of selectable players

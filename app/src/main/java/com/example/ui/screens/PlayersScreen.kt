@@ -238,7 +238,7 @@ fun PlayersScreen(
                                     DigimonColorBadge(colorName = player.deckColor, showLabel = false)
                                 }
                                 Text(
-                                    text = "${player.deckArchetype} • ${player.handle}",
+                                    text = "${player.deckArchetype} • ${player.handle} • UID: ${if (player.bandaiUid.isNotBlank()) player.bandaiUid else "-"}",
                                     color = TextMuted,
                                     fontSize = 12.sp,
                                     maxLines = 1,

@@ -230,13 +230,27 @@ fun MatchCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         DigimonColorBadge(colorName = player1.deckColor, showLabel = false)
                     }
-                    Text(
-                        text = player1.deckArchetype,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = player1.deckArchetype,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "UID: ${if (player1.bandaiUid.isNotBlank()) player1.bandaiUid else "-"}",
+                            color = if (player1.bandaiUid.isNotBlank() && player1.bandaiUid != "-") DigiCyan else TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = if (player1.bandaiUid.isNotBlank() && player1.bandaiUid != "-") FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 // P1 Score
@@ -283,13 +297,27 @@ fun MatchCard(
                             Spacer(modifier = Modifier.width(6.dp))
                             DigimonColorBadge(colorName = player2.deckColor, showLabel = false)
                         }
-                        Text(
-                            text = player2.deckArchetype,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = player2.deckArchetype,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "UID: ${if (player2.bandaiUid.isNotBlank()) player2.bandaiUid else "-"}",
+                                color = if (player2.bandaiUid.isNotBlank() && player2.bandaiUid != "-") DigiCyan else TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = if (player2.bandaiUid.isNotBlank() && player2.bandaiUid != "-") FontWeight.SemiBold else FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
                     // P2 Score

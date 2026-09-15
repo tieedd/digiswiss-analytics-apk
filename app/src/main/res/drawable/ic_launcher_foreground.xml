@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/logo_digiswiss_final_1789302088689"
+        android:width="70dp"
+        android:height="70dp"
+        android:drawable="@drawable/digiswiss_app_icon_1789440917379"
         android:gravity="center" />
 </layer-list>

@@ -129,6 +129,14 @@ class TournamentRepository(private val context: Context) {
         newUser.copy(id = id)
     }
 
+    suspend fun getUserById(userId: Long): UserEntity? = withContext(Dispatchers.IO) {
+        userDao.getUserById(userId)
+    }
+
+    suspend fun getPlayerById(playerId: Long): PlayerEntity? = withContext(Dispatchers.IO) {
+        playerDao.getPlayerById(playerId)
+    }
+
     suspend fun updateUser(user: UserEntity) = withContext(Dispatchers.IO) {
         userDao.updateUser(user)
     }
