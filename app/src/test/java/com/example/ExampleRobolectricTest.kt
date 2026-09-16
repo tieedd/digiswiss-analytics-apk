@@ -22,7 +22,7 @@ class ExampleRobolectricTest {
   fun `read string from context`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
-    assertEquals("DigiSwiss", appName)
+    assertEquals("DigiSwiss & Analytics", appName)
   }
 
   @Test
@@ -124,56 +124,21 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `online tournament sync payload serializes and deserializes accurately`() {
-    val tournament = com.example.data.local.TournamentEntity(
-      id = 10,
-      name = "Bandai TCG Fest 2026",
-      dateText = "2026-09-12",
-      totalRounds = 4,
-      currentRound = 2,
-      status = "ACTIVE",
-      roundDurationMinutes = 45,
-      location = "Jakarta Hall",
-      matchFormat = "BO3"
-    )
-    val p1 = PlayerEntity(id = 101, name = "Agumon Master", handle = "@agumon", deckArchetype = "WarGreymon")
-    val p2 = PlayerEntity(id = 102, name = "Gabumon Tamer", handle = "@gabumon", deckArchetype = "MetalGarurumon")
+  fun `swiss pairing round 1 creates valid pairings for all players`() {
+    val players = (1..6).map { id ->
+      PlayerEntity(id = id.toLong(), name = "Player $id", handle = "@p$id", deckArchetype = "Archetype $id")
+    }
 
-    val match = MatchEntity(
-      id = 501,
+    val matches = com.example.util.SwissPairingEngine.generateNextRoundPairings(
       tournamentId = 10,
       roundNumber = 1,
-      tableNumber = 1,
-      player1Id = 101,
-      player2Id = 102,
-      p1Score = 2,
-      p2Score = 1,
-      winnerId = 101,
-      isReported = true
+      players = players,
+      pastMatches = emptyList()
     )
 
-    val payload = com.example.data.remote.TournamentSyncPayload(
-      roomCode = "DIGI-99",
-      actionType = "SCORE_UPDATE",
-      senderRole = "ORGANIZER",
-      senderName = "Head Judge",
-      message = "Meja 1 selesai",
-      tournament = tournament,
-      players = listOf(p1, p2),
-      matches = listOf(match)
-    )
-
-    val jsonString = payload.toJsonString()
-    assertTrue(jsonString.contains("DIGI-99"))
-    assertTrue(jsonString.contains("Bandai TCG Fest 2026"))
-
-    val parsed = com.example.data.remote.TournamentSyncPayload.fromJsonString(jsonString)
-    assertNotNull(parsed)
-    assertEquals("DIGI-99", parsed!!.roomCode)
-    assertEquals("Bandai TCG Fest 2026", parsed.tournament.name)
-    assertEquals(2, parsed.players.size)
-    assertEquals(1, parsed.matches.size)
-    assertEquals(101L, parsed.matches[0].winnerId)
+    assertEquals(3, matches.size)
+    val pairedIds = matches.flatMap { listOfNotNull(it.player1Id, it.player2Id) }
+    assertEquals(6, pairedIds.distinct().size)
   }
 }
 

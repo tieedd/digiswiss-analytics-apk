@@ -178,16 +178,84 @@ object SwissPairingEngine {
             }
         }
 
-        // Calculate current standings to sort players by points
+        // ROUND 1: Strictly random pairings for tournament start
+        if (roundNumber == 1 || pastMatches.isEmpty()) {
+            val shuffledPool = players.shuffled().toMutableList()
+            val generatedMatches = mutableListOf<MatchEntity>()
+            var tableNum = 1
+
+            // Handle BYE if odd number of players - pick randomly
+            if (shuffledPool.size % 2 != 0) {
+                val byeCandidate = shuffledPool.removeAt(shuffledPool.indices.random())
+                generatedMatches.add(
+                    MatchEntity(
+                        tournamentId = tournamentId,
+                        roundNumber = roundNumber,
+                        tableNumber = 0, // table 0 is BYE
+                        player1Id = byeCandidate.id,
+                        player2Id = null,
+                        p1DeckArchetype = if (byeCandidate.deckArchetype != "Unknown") byeCandidate.deckArchetype else "",
+                        p1DeckColor = if (byeCandidate.deckColor != "UNKNOWN") byeCandidate.deckColor else "",
+                        p1Score = 2,
+                        p2Score = 0,
+                        isDraw = false,
+                        isBye = true,
+                        winnerId = byeCandidate.id,
+                        isReported = true,
+                        matchDurationMinutes = 0
+                    )
+                )
+            }
+
+            // Pair remaining players 2 by 2 purely at random
+            while (shuffledPool.size >= 2) {
+                val p1 = shuffledPool.removeAt(0)
+                val p2 = shuffledPool.removeAt(0)
+                val (first, second) = if (kotlin.random.Random.nextBoolean()) Pair(p1, p2) else Pair(p2, p1)
+                generatedMatches.add(
+                    MatchEntity(
+                        tournamentId = tournamentId,
+                        roundNumber = roundNumber,
+                        tableNumber = tableNum++,
+                        player1Id = first.id,
+                        player2Id = second.id,
+                        p1DeckArchetype = if (first.deckArchetype != "Unknown") first.deckArchetype else "",
+                        p1DeckColor = if (first.deckColor != "UNKNOWN") first.deckColor else "",
+                        p2DeckArchetype = if (second.deckArchetype != "Unknown") second.deckArchetype else "",
+                        p2DeckColor = if (second.deckColor != "UNKNOWN") second.deckColor else "",
+                        p1Score = 0,
+                        p2Score = 0,
+                        isDraw = false,
+                        isBye = false,
+                        winnerId = null,
+                        isReported = false,
+                        matchDurationMinutes = 0
+                    )
+                )
+            }
+
+            return generatedMatches.sortedBy { if (it.isBye) 9999 else it.tableNumber }
+        }
+
+        // ROUND 2+: Swiss system with randomized matching within identical score brackets
         val standings = computeStandings(players, pastMatches)
-        val playerList = standings.map { it.player }.toMutableList()
+
+        // Group players by match points, sorted descending (highest points first)
+        val brackets = standings.groupBy { it.matchPoints }
+            .toSortedMap(compareByDescending { it })
+
+        // Build playerList by taking each bracket and shuffling it internally
+        val playerList = mutableListOf<PlayerEntity>()
+        for ((_, entries) in brackets) {
+            playerList.addAll(entries.shuffled().map { it.player })
+        }
 
         val generatedMatches = mutableListOf<MatchEntity>()
         var tableNum = 1
 
         // Handle BYE if odd number of players
         if (playerList.size % 2 != 0) {
-            // Pick lowest ranked player without a BYE
+            // Pick lowest ranked player without a BYE, randomize among eligible candidates with the lowest points
             val byeCandidate = playerList.reversed().firstOrNull { it.id !in playersWithByes }
                 ?: playerList.last()
 
@@ -199,6 +267,8 @@ object SwissPairingEngine {
                     tableNumber = 0, // table 0 is BYE
                     player1Id = byeCandidate.id,
                     player2Id = null,
+                    p1DeckArchetype = if (byeCandidate.deckArchetype != "Unknown") byeCandidate.deckArchetype else "",
+                    p1DeckColor = if (byeCandidate.deckColor != "UNKNOWN") byeCandidate.deckColor else "",
                     p1Score = 2,
                     p2Score = 0,
                     isDraw = false,
@@ -232,13 +302,18 @@ object SwissPairingEngine {
 
             if (partnerIndex != -1) {
                 val p2 = unassigned.removeAt(partnerIndex)
+                val (first, second) = if (kotlin.random.Random.nextBoolean()) Pair(p1, p2) else Pair(p2, p1)
                 generatedMatches.add(
                     MatchEntity(
                         tournamentId = tournamentId,
                         roundNumber = roundNumber,
                         tableNumber = tableNum++,
-                        player1Id = p1.id,
-                        player2Id = p2.id,
+                        player1Id = first.id,
+                        player2Id = second.id,
+                        p1DeckArchetype = if (first.deckArchetype != "Unknown") first.deckArchetype else "",
+                        p1DeckColor = if (first.deckColor != "UNKNOWN") first.deckColor else "",
+                        p2DeckArchetype = if (second.deckArchetype != "Unknown") second.deckArchetype else "",
+                        p2DeckColor = if (second.deckColor != "UNKNOWN") second.deckColor else "",
                         p1Score = 0,
                         p2Score = 0,
                         isDraw = false,

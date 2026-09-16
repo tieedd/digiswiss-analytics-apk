@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.data.local.PlayerEntity
 import com.example.data.model.DigimonColor
 import com.example.ui.theme.CyberCardBorder
 import com.example.ui.theme.CyberCardElevated
@@ -58,6 +59,7 @@ import com.example.ui.theme.TextMuted
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AddPlayerDialog(
+    existingPlayers: List<PlayerEntity> = emptyList(),
     onDismiss: () -> Unit,
     onConfirmAdd: (name: String, handle: String, bandaiUid: String) -> Unit
 ) {
@@ -224,14 +226,40 @@ fun AddPlayerDialog(
                                 return@Button
                             }
                             val trimmedUid = bandaiUid.trim()
-                            if (trimmedUid.isNotEmpty()) {
+                            if (trimmedUid.isNotEmpty() && trimmedUid != "-") {
                                 if (trimmedUid.length != 10) {
                                     errorMessage = "UID Bandai+ harus tepat 10 karakter angka (tidak boleh kurang atau lebih)."
                                     return@Button
                                 }
                             }
-                            val finalHandle = if (handle.isBlank()) "-" else handle.trim()
-                            val finalUid = if (trimmedUid.isBlank()) "-" else trimmedUid
+                            val rawHandle = handle.trim()
+                            val finalHandle = if (rawHandle.isBlank() || rawHandle == "-") "-" else if (rawHandle.startsWith("@")) rawHandle else "@$rawHandle"
+                            val finalUid = if (trimmedUid.isBlank() || trimmedUid == "-") "-" else trimmedUid
+
+                            // Duplicate validation (exempting "-" or blank)
+                            if (finalHandle != "-") {
+                                val cleanCheckHandle = finalHandle.removePrefix("@")
+                                val duplicateUsername = existingPlayers.any { p ->
+                                    val existingClean = p.handle.trim().removePrefix("@")
+                                    existingClean != "-" && existingClean.equals(cleanCheckHandle, ignoreCase = true)
+                                }
+                                if (duplicateUsername) {
+                                    errorMessage = "Username Bandai+ '$finalHandle' sudah digunakan pemain lain. Gunakan username berbeda."
+                                    return@Button
+                                }
+                            }
+
+                            if (finalUid != "-") {
+                                val duplicateUid = existingPlayers.any { p ->
+                                    val existingCleanUid = p.bandaiUid.trim()
+                                    existingCleanUid != "-" && existingCleanUid.equals(finalUid, ignoreCase = true)
+                                }
+                                if (duplicateUid) {
+                                    errorMessage = "UID Bandai+ '$finalUid' sudah terdaftar pada pemain lain. Periksa kembali."
+                                    return@Button
+                                }
+                            }
+
                             onConfirmAdd(name.trim(), finalHandle, finalUid)
                         },
                         modifier = Modifier

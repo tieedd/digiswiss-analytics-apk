@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,9 +22,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.HowToReg
@@ -60,6 +63,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
@@ -96,6 +100,7 @@ fun TournamentScreen(
     onOpenAuthDialog: () -> Unit,
     onOpenAdminDialog: () -> Unit,
     onNavigateToStandings: () -> Unit,
+    onOpenNewTournamentDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var playerToSubmitDeck by remember { mutableStateOf<PlayerEntity?>(null) }
@@ -175,10 +180,14 @@ fun TournamentScreen(
         }
     }
 
+    val allMatches by viewModel.allMatchesFlow.collectAsState()
+
     if (playerToSubmitDeck != null && tournament != null) {
         com.example.ui.components.SubmitDeckDialog(
             player = playerToSubmitDeck!!,
             matches = matches,
+            allMatches = allMatches,
+            allPlayers = players,
             onDismiss = { playerToSubmitDeck = null },
             onConfirmSubmit = { archetype, colors ->
                 viewModel.setPlayerDeckForTournament(tournament.id, playerToSubmitDeck!!.id, archetype, colors)
@@ -270,34 +279,18 @@ fun TournamentScreen(
                                 Text("Kelola", color = DigiGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                         }
-
-                        Button(
-                            onClick = onOpenAuthDialog,
-                            shape = RoundedCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = CyberCardElevated),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            modifier = Modifier.testTag("btn_switch_or_login")
-                        ) {
-                            Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = DigiCyan, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (currentUser != null) "Ganti Akun" else "Masuk / Daftar",
-                                color = DigiCyan,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
                 }
             }
         }
 
-        // Hero Header Banner
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-            ) {
+        if (tournament != null) {
+            // Hero Header Banner
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -702,6 +695,27 @@ fun TournamentScreen(
                             }
                             
                             playersToShow.forEach { p ->
+                                val playerTourneyMatch = matches.firstOrNull {
+                                    (it.player1Id == p.id && it.p1DeckArchetype.isNotBlank() && it.p1DeckArchetype != "Unknown") ||
+                                    (it.player2Id == p.id && it.p2DeckArchetype.isNotBlank() && it.p2DeckArchetype != "Unknown")
+                                }
+
+                                val deckArchetypeInTourney = if (playerTourneyMatch != null) {
+                                    if (playerTourneyMatch.player1Id == p.id) playerTourneyMatch.p1DeckArchetype else playerTourneyMatch.p2DeckArchetype
+                                } else null
+
+                                val deckColorInTourney = if (playerTourneyMatch != null) {
+                                    if (playerTourneyMatch.player1Id == p.id) playerTourneyMatch.p1DeckColor else playerTourneyMatch.p2DeckColor
+                                } else null
+
+                                val resolvedArchetype = deckArchetypeInTourney?.takeIf { it.isNotBlank() && it != "Unknown" }
+                                    ?: p.deckArchetype.takeIf { it.isNotBlank() && it != "Unknown" }
+
+                                val resolvedColor = deckColorInTourney?.takeIf { it.isNotBlank() && it != "UNKNOWN" }
+                                    ?: p.deckColor.takeIf { it.isNotBlank() && it != "UNKNOWN" }
+
+                                val isDeckSet = !resolvedArchetype.isNullOrBlank() && resolvedArchetype != "Unknown"
+
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -709,17 +723,60 @@ fun TournamentScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = p.name,
-                                        color = Color.White,
-                                        fontSize = 13.sp
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = p.name,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 13.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (isDeckSet && resolvedColor != null && resolvedArchetype != null) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            DigimonColorBadge(colorName = resolvedColor, showLabel = false)
+                                            Spacer(modifier = Modifier.width(5.dp))
+                                            Text(
+                                                text = resolvedArchetype,
+                                                color = DigiCyan,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 12.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
                                     OutlinedButton(
                                         onClick = { playerToSubmitDeck = p },
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                        modifier = Modifier.height(32.dp)
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier
+                                            .height(30.dp)
+                                            .testTag("deck_button_${p.id}"),
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (isDeckSet) DigiGold.copy(alpha = 0.8f) else DigiCyan.copy(alpha = 0.8f)
+                                        ),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = if (isDeckSet) DigiGold.copy(alpha = 0.08f) else DigiCyan.copy(alpha = 0.08f)
+                                        )
                                     ) {
-                                        Text("Set Deck", fontSize = 11.sp, color = DigiCyan)
+                                        Icon(
+                                            imageVector = if (isDeckSet) Icons.Default.Edit else Icons.Default.Add,
+                                            contentDescription = null,
+                                            tint = if (isDeckSet) DigiGold else DigiCyan,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (isDeckSet) "Edit Deck" else "Set Deck",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (isDeckSet) DigiGold else DigiCyan
+                                        )
                                     }
                                 }
                             }
@@ -775,6 +832,40 @@ fun TournamentScreen(
                             isOrganizerOrAdmin = currentUser?.isAdmin == true || currentUser?.isOrganizer == true,
                             currentLoggedInPlayerId = loggedInPlayer?.id
                         )
+                    }
+                }
+            }
+        }
+        } else {
+            item {
+                Box(
+                    modifier = Modifier.fillParentMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Tidak ada permainan berlangsung",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        if (currentUser?.isAdmin == true || currentUser?.isOrganizer == true) {
+                            Button(
+                                onClick = onOpenNewTournamentDialog,
+                                shape = RoundedCornerShape(4.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                modifier = Modifier
+                                    .padding(16.dp)
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    text = "Mulai Tournament",
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }

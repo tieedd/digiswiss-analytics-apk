@@ -15,10 +15,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,8 +51,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import com.example.data.local.MatchEntity
 import com.example.data.local.PlayerEntity
 import com.example.data.model.DigimonColor
@@ -53,6 +58,7 @@ import com.example.ui.theme.CyberCardBorder
 import com.example.ui.theme.CyberCardElevated
 import com.example.ui.theme.CyberCardSurface
 import com.example.ui.theme.DigiCyan
+import com.example.ui.theme.DigiGold
 import com.example.ui.theme.TextMuted
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -60,38 +66,87 @@ import com.example.ui.theme.TextMuted
 fun SubmitDeckDialog(
     player: PlayerEntity,
     matches: List<MatchEntity> = emptyList(),
+    allMatches: List<MatchEntity> = emptyList(),
+    allPlayers: List<PlayerEntity> = emptyList(),
     onDismiss: () -> Unit,
     onConfirmSubmit: (archetype: String, colors: String) -> Unit
 ) {
-    var deckArchetype by remember { mutableStateOf(player.deckArchetype.takeIf { it != "Unknown" } ?: "") }
-    var selectedColors by remember { mutableStateOf<Set<DigimonColor>>(
-        if (player.deckColor != "UNKNOWN") {
-            player.deckColor.split(",").mapNotNull { name ->
-                DigimonColor.entries.find { it.name == name.trim() }
-            }.toSet()
-        } else emptySet()
-    ) }
+    // Resolve current tournament deck if already assigned
+    val currentTourneyMatch = remember(player, matches) {
+        matches.firstOrNull {
+            (it.player1Id == player.id && it.p1DeckArchetype.isNotBlank() && it.p1DeckArchetype != "Unknown") ||
+            (it.player2Id == player.id && it.p2DeckArchetype.isNotBlank() && it.p2DeckArchetype != "Unknown")
+        }
+    }
+    val tourneyArchetype = if (currentTourneyMatch?.player1Id == player.id) currentTourneyMatch.p1DeckArchetype else currentTourneyMatch?.p2DeckArchetype
+    val tourneyColor = if (currentTourneyMatch?.player1Id == player.id) currentTourneyMatch.p1DeckColor else currentTourneyMatch?.p2DeckColor
+
+    val initialArchetype = tourneyArchetype?.takeIf { it.isNotBlank() && it != "Unknown" }
+        ?: player.deckArchetype.takeIf { it.isNotBlank() && it != "Unknown" }
+        ?: ""
+
+    val initialColorString = tourneyColor?.takeIf { it.isNotBlank() && it != "UNKNOWN" }
+        ?: player.deckColor.takeIf { it.isNotBlank() && it != "UNKNOWN" }
+        ?: ""
+
+    val isEditing = initialArchetype.isNotBlank()
+
+    var deckArchetype by remember { mutableStateOf(initialArchetype) }
+    var selectedColors by remember {
+        mutableStateOf<Set<DigimonColor>>(
+            if (initialColorString.isNotBlank()) {
+                initialColorString.split(",").mapNotNull { name ->
+                    DigimonColor.entries.find { it.name.equals(name.trim(), ignoreCase = true) }
+                }.toSet()
+            } else emptySet()
+        )
+    }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Extract historical decks for this player
-    val historicalDecks = remember(player, matches) {
-        val decks = mutableSetOf<Pair<String, String>>() // Pair of Archetype to Colors string
+    // Extract historical decks strictly for this player only
+    val historicalDecks = remember(player, matches, allMatches) {
+        val playerPastDecks = mutableListOf<Pair<String, String>>()
+
+        // 1. Current tournament matches for this player
         matches.forEach { m ->
-            if (m.player1Id == player.id && m.p1DeckArchetype != null && m.p1DeckColor != null) {
-                decks.add(Pair(m.p1DeckArchetype, m.p1DeckColor))
-            } else if (m.player2Id == player.id && m.p2DeckArchetype != null && m.p2DeckColor != null) {
-                decks.add(Pair(m.p2DeckArchetype, m.p2DeckColor))
+            if (m.player1Id == player.id && m.p1DeckArchetype.isNotBlank() && m.p1DeckArchetype != "Unknown") {
+                playerPastDecks.add(Pair(m.p1DeckArchetype.trim(), m.p1DeckColor.trim()))
+            }
+            if (m.player2Id == player.id && m.p2DeckArchetype.isNotBlank() && m.p2DeckArchetype != "Unknown") {
+                playerPastDecks.add(Pair(m.p2DeckArchetype.trim(), m.p2DeckColor.trim()))
             }
         }
-        // Filter out Unknown or blank
-        decks.filter { it.first.isNotBlank() && it.first != "Unknown" }.toList()
+
+        // 2. Historical matches across all tournaments for this player
+        allMatches.forEach { m ->
+            if (m.player1Id == player.id && m.p1DeckArchetype.isNotBlank() && m.p1DeckArchetype != "Unknown") {
+                playerPastDecks.add(Pair(m.p1DeckArchetype.trim(), m.p1DeckColor.trim()))
+            }
+            if (m.player2Id == player.id && m.p2DeckArchetype.isNotBlank() && m.p2DeckArchetype != "Unknown") {
+                playerPastDecks.add(Pair(m.p2DeckArchetype.trim(), m.p2DeckColor.trim()))
+            }
+        }
+
+        // 3. Current player's registered default deck
+        if (player.deckArchetype.isNotBlank() && player.deckArchetype != "Unknown") {
+            playerPastDecks.add(Pair(player.deckArchetype.trim(), player.deckColor.trim()))
+        }
+
+        // Distinct by archetype name case-insensitively
+        val distinctDecks = mutableListOf<Pair<String, String>>()
+        playerPastDecks.forEach { item ->
+            if (distinctDecks.none { it.first.equals(item.first, ignoreCase = true) }) {
+                distinctDecks.add(item)
+            }
+        }
+        distinctDecks
     }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(vertical = 12.dp),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
             border = androidx.compose.foundation.BorderStroke(1.dp, CyberCardBorder)
@@ -99,6 +154,7 @@ fun SubmitDeckDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(20.dp)
             ) {
                 // Header
@@ -109,14 +165,14 @@ fun SubmitDeckDialog(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            Icons.Default.Save,
+                            imageVector = if (isEditing) Icons.Default.Edit else Icons.Default.Save,
                             contentDescription = null,
-                            tint = DigiCyan,
+                            tint = if (isEditing) DigiGold else DigiCyan,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Simpan Deck Pemain",
+                            text = if (isEditing) "Edit Deck Pemain" else "Set Deck Pemain",
                             color = Color.White,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
@@ -127,23 +183,40 @@ fun SubmitDeckDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 
-                Text(
-                    text = "Pemain: ${player.name}",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Pemain: ",
+                        color = TextMuted,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = player.name,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
+                // History / Quick Select Section
                 if (historicalDecks.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = "Pilih Deck Dari Histori",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.History,
+                            contentDescription = null,
+                            tint = DigiCyan,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Histori Deck ${player.name}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
@@ -151,47 +224,66 @@ fun SubmitDeckDialog(
                     ) {
                         items(historicalDecks) { (histArchetype, histColorStr) ->
                             val parsedColors = histColorStr.split(",").mapNotNull { name ->
-                                DigimonColor.entries.find { it.name == name.trim() }
+                                DigimonColor.entries.find { it.name.equals(name.trim(), ignoreCase = true) }
                             }.toSet()
-                            val color1 = parsedColors.firstOrNull()?.badgeColor ?: CyberCardBorder
+                            val isSelected = deckArchetype.equals(histArchetype, ignoreCase = true)
+                            val accentColor = if (isSelected) DigiCyan else (parsedColors.firstOrNull()?.badgeColor ?: CyberCardBorder)
 
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(CyberCardElevated)
-                                    .border(1.dp, color1, RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) DigiCyan.copy(alpha = 0.16f) else CyberCardElevated)
+                                    .border(
+                                        if (isSelected) 1.5.dp else 1.dp,
+                                        if (isSelected) DigiCyan else accentColor.copy(alpha = 0.6f),
+                                        RoundedCornerShape(8.dp)
+                                    )
                                     .clickable {
                                         deckArchetype = histArchetype
                                         selectedColors = parsedColors
                                         errorMessage = null
                                     }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .padding(horizontal = 10.dp, vertical = 7.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // Mini color badges
-                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        parsedColors.forEach { c ->
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(8.dp)
-                                                    .clip(CircleShape)
-                                                    .background(c.badgeColor)
-                                            )
+                                    // Mini color dots
+                                    if (parsedColors.isNotEmpty()) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            parsedColors.forEach { c ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(8.dp)
+                                                        .clip(CircleShape)
+                                                        .background(c.badgeColor)
+                                                )
+                                            }
                                         }
+                                        Spacer(modifier = Modifier.width(6.dp))
                                     }
-                                    Spacer(modifier = Modifier.width(6.dp))
+
                                     Text(
                                         text = histArchetype,
-                                        color = Color.White,
-                                        fontSize = 11.sp
+                                        color = if (isSelected) DigiCyan else Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                     )
+
+                                    if (isSelected) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = DigiCyan,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Archetype input
                 OutlinedTextField(
@@ -296,13 +388,15 @@ fun SubmitDeckDialog(
                             }
                             
                             val colorString = selectedColors.joinToString(",") { it.name }
-                            onConfirmSubmit(deckArchetype, colorString)
+                            onConfirmSubmit(deckArchetype.trim(), colorString)
                         },
                         modifier = Modifier.weight(1.5f),
-                        colors = ButtonDefaults.buttonColors(containerColor = DigiCyan)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isEditing) DigiGold else DigiCyan
+                        )
                     ) {
                         Text(
-                            "Simpan",
+                            if (isEditing) "Perbarui Deck" else "Simpan Deck",
                             color = Color(0xFF0F172A),
                             fontWeight = FontWeight.Bold
                         )

@@ -60,6 +60,7 @@ import com.example.ui.theme.TextMuted
 @Composable
 fun EditPlayerDialog(
     player: PlayerEntity,
+    existingPlayers: List<PlayerEntity> = emptyList(),
     onDismiss: () -> Unit,
     onConfirmSave: (name: String, handle: String, bandaiUid: String, archetype: String, color: String) -> Unit
 ) {
@@ -290,14 +291,40 @@ fun EditPlayerDialog(
                                 return@Button
                             }
                             val trimmedUid = bandaiUid.trim()
-                            if (trimmedUid.isNotEmpty()) {
+                            if (trimmedUid.isNotEmpty() && trimmedUid != "-") {
                                 if (trimmedUid.length != 10) {
                                     errorMessage = "UID Bandai+ harus tepat 10 karakter angka (tidak boleh kurang atau lebih)."
                                     return@Button
                                 }
                             }
-                            val finalHandle = if (handle.isBlank()) "-" else if (handle.startsWith("@")) handle.trim() else "@${handle.trim()}"
-                            val finalUid = if (trimmedUid.isBlank()) "-" else trimmedUid
+                            val rawHandle = handle.trim()
+                            val finalHandle = if (rawHandle.isBlank() || rawHandle == "-") "-" else if (rawHandle.startsWith("@")) rawHandle else "@$rawHandle"
+                            val finalUid = if (trimmedUid.isBlank() || trimmedUid == "-") "-" else trimmedUid
+
+                            // Duplicate validation (excluding current player and exempting "-")
+                            if (finalHandle != "-") {
+                                val cleanCheckHandle = finalHandle.removePrefix("@")
+                                val duplicateUsername = existingPlayers.any { p ->
+                                    p.id != player.id && p.handle.trim().removePrefix("@") != "-" &&
+                                            p.handle.trim().removePrefix("@").equals(cleanCheckHandle, ignoreCase = true)
+                                }
+                                if (duplicateUsername) {
+                                    errorMessage = "Username Bandai+ '$finalHandle' sudah digunakan pemain lain. Gunakan username berbeda."
+                                    return@Button
+                                }
+                            }
+
+                            if (finalUid != "-") {
+                                val duplicateUid = existingPlayers.any { p ->
+                                    p.id != player.id && p.bandaiUid.trim() != "-" &&
+                                            p.bandaiUid.trim().equals(finalUid, ignoreCase = true)
+                                }
+                                if (duplicateUid) {
+                                    errorMessage = "UID Bandai+ '$finalUid' sudah terdaftar pada pemain lain. Periksa kembali."
+                                    return@Button
+                                }
+                            }
+
                             val finalArchetype = if (deckArchetype.isBlank()) "Unknown" else deckArchetype.trim()
                             onConfirmSave(name.trim(), finalHandle, finalUid, finalArchetype, selectedColor)
                         },

@@ -350,6 +350,7 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     fun setPlayerDeckForTournament(tournamentId: Long, playerId: Long, archetype: String, colors: String) {
         viewModelScope.launch {
             repository.setPlayerDeckForTournament(tournamentId, playerId, archetype, colors)
+            _allMatchesFlow.value = repository.getAllMatches()
             showInAppNotification(
                 "Deck Tersimpan",
                 "Deck '$archetype' berhasil disimpan untuk statistik pemain di turnamen ini."
@@ -382,6 +383,29 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             val cleanHandle = if (handle.isBlank() || handle.trim() == "-") "-" else if (handle.startsWith("@")) handle.trim() else "@${handle.trim()}"
             val cleanUid = if (bandaiUid.isBlank() || bandaiUid.trim() == "-") "-" else bandaiUid.trim()
+
+            val currentPlayers = repository.getAllPlayersList()
+            if (cleanHandle != "-") {
+                val cleanCheck = cleanHandle.removePrefix("@")
+                if (currentPlayers.any { it.handle.removePrefix("@") != "-" && it.handle.removePrefix("@").equals(cleanCheck, ignoreCase = true) }) {
+                    showInAppNotification(
+                        "Pendaftaran Gagal",
+                        "Username '$cleanHandle' sudah terdaftar pada pemain lain!"
+                    )
+                    return@launch
+                }
+            }
+
+            if (cleanUid != "-") {
+                if (currentPlayers.any { it.bandaiUid != "-" && it.bandaiUid.equals(cleanUid, ignoreCase = true) }) {
+                    showInAppNotification(
+                        "Pendaftaran Gagal",
+                        "UID Bandai+ '$cleanUid' sudah terdaftar pada pemain lain!"
+                    )
+                    return@launch
+                }
+            }
+
             val newPlayer = PlayerEntity(
                 name = name.trim(),
                 handle = cleanHandle,
@@ -398,6 +422,20 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun deletePlayer(playerId: Long) {
+        viewModelScope.launch {
+            val player = repository.getPlayerById(playerId)
+            repository.deletePlayer(playerId)
+            if (_selectedPlayer.value?.id == playerId) {
+                _selectedPlayer.value = null
+            }
+            showInAppNotification(
+                "Pemain Dihapus",
+                "${player?.name ?: "Pemain"} berhasil dihapus dari database."
+            )
+        }
+    }
+
     fun updatePlayer(
         playerId: Long,
         name: String,
@@ -410,6 +448,29 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
             val existing = repository.getPlayerById(playerId) ?: return@launch
             val cleanHandle = if (handle.isBlank() || handle.trim() == "-") "-" else if (handle.startsWith("@")) handle.trim() else "@${handle.trim()}"
             val cleanUid = if (bandaiUid.isBlank() || bandaiUid.trim() == "-") "-" else bandaiUid.trim()
+
+            val currentPlayers = repository.getAllPlayersList()
+            if (cleanHandle != "-") {
+                val cleanCheck = cleanHandle.removePrefix("@")
+                if (currentPlayers.any { it.id != playerId && it.handle.removePrefix("@") != "-" && it.handle.removePrefix("@").equals(cleanCheck, ignoreCase = true) }) {
+                    showInAppNotification(
+                        "Penyimpanan Gagal",
+                        "Username '$cleanHandle' sudah digunakan oleh pemain lain!"
+                    )
+                    return@launch
+                }
+            }
+
+            if (cleanUid != "-") {
+                if (currentPlayers.any { it.id != playerId && it.bandaiUid != "-" && it.bandaiUid.equals(cleanUid, ignoreCase = true) }) {
+                    showInAppNotification(
+                        "Penyimpanan Gagal",
+                        "UID Bandai+ '$cleanUid' sudah terdaftar pada pemain lain!"
+                    )
+                    return@launch
+                }
+            }
+
             val updated = existing.copy(
                 name = name.trim(),
                 handle = cleanHandle,

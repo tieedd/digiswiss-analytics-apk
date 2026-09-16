@@ -35,6 +35,17 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.local.PlayerEntity
+import com.example.data.local.UserEntity
 import com.example.ui.theme.CyberCardBorder
 import com.example.ui.theme.CyberCardElevated
 import com.example.ui.theme.CyberCardSurface
@@ -59,10 +71,12 @@ import com.example.ui.theme.DigiCyan
 import com.example.ui.theme.DigiGold
 import com.example.ui.theme.TextMuted
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewTournamentDialog(
     allPlayers: List<PlayerEntity> = emptyList(),
     defaultOrganizer: String = "DigiSwiss Organizer",
+    currentUser: UserEntity? = null,
     onDismiss: () -> Unit,
     onAddNewPlayerClick: () -> Unit = {},
     onConfirmCreate: (
@@ -75,7 +89,7 @@ fun NewTournamentDialog(
         selectedPlayerIds: List<Long>?
     ) -> Unit
 ) {
-    var name by remember { mutableStateOf("DigiFest Championship #14") }
+    var name by remember { mutableStateOf("Tamer Battle #") }
     var location by remember { mutableStateOf(defaultOrganizer) }
     var matchFormat by remember { mutableStateOf("BO3") }
     var totalRounds by remember { mutableIntStateOf(3) }
@@ -84,6 +98,11 @@ fun NewTournamentDialog(
     // Add Date fields
     val currentDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
     var tournamentDate by remember { mutableStateOf(currentDate) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
+    
+    var organizerExpanded by remember { mutableStateOf(false) }
+    val availableOrganizers = if (currentUser?.isAdmin == true) listOf("Midnight Ogre") else listOf(defaultOrganizer)
 
     // Selection of admitted players
     val selectedPlayerIds = remember {
@@ -162,15 +181,19 @@ fun NewTournamentDialog(
                 item {
                     OutlinedTextField(
                         value = tournamentDate,
-                        onValueChange = { tournamentDate = it },
+                        onValueChange = { },
                         label = { Text("Tanggal Turnamen") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true },
+                        enabled = false,
                         singleLine = true,
+                        trailingIcon = {
+                            Icon(Icons.Default.DateRange, contentDescription = "Pilih Tanggal", tint = DigiCyan)
+                        },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DigiCyan,
-                            unfocusedBorderColor = CyberCardBorder,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            disabledTextColor = Color.White,
+                            disabledBorderColor = CyberCardBorder,
+                            disabledLabelColor = Color.White,
+                            disabledTrailingIconColor = DigiCyan
                         )
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -178,19 +201,43 @@ fun NewTournamentDialog(
 
                 // Location / Store Name
                 item {
-                    OutlinedTextField(
-                        value = location,
-                        onValueChange = { location = it },
-                        label = { Text("Lokasi / Nama Penyelenggara (Toko)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DigiCyan,
-                            unfocusedBorderColor = CyberCardBorder,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                    ExposedDropdownMenuBox(
+                        expanded = organizerExpanded,
+                        onExpandedChange = { organizerExpanded = !organizerExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = location,
+                            onValueChange = { location = it },
+                            label = { Text("Organizer") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            singleLine = true,
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = organizerExpanded)
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = DigiCyan,
+                                unfocusedBorderColor = CyberCardBorder,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
                         )
-                    )
+                        ExposedDropdownMenu(
+                            expanded = organizerExpanded,
+                            onDismissRequest = { organizerExpanded = false }
+                        ) {
+                            availableOrganizers.forEach { organizer ->
+                                DropdownMenuItem(
+                                    text = { Text(organizer) },
+                                    onClick = {
+                                        location = organizer
+                                        organizerExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(14.dp))
                 }
 
@@ -551,6 +598,29 @@ fun NewTournamentDialog(
                     }
                 }
             }
+        }
+    }
+    
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        tournamentDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(millis))
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK", color = DigiCyan)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Batal", color = Color.Gray)
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }

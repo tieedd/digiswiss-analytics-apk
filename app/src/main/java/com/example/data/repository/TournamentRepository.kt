@@ -27,10 +27,10 @@ class TournamentRepository(private val context: Context) {
     val activeTournamentFlow: Flow<TournamentEntity?> = tournamentDao.getActiveTournamentFlow()
 
     suspend fun checkAndSeedInitialData() = withContext(Dispatchers.IO) {
-        // 1. Seed users if masteradmin doesn't exist
+        // 1. Seed users if they don't exist
         val adminUser = userDao.getUserByUsername("masteradmin")
         if (adminUser == null) {
-            val defaultUsers = listOf(
+            userDao.insertUser(
                 UserEntity(
                     username = "masteradmin",
                     password = "masteradmin",
@@ -39,7 +39,19 @@ class TournamentRepository(private val context: Context) {
                     affiliation = "DigiSwiss Central Admin"
                 )
             )
-            userDao.insertAll(defaultUsers)
+        }
+        
+        val ogreUser = userDao.getUserByUsername("ogremaster")
+        if (ogreUser == null) {
+            userDao.insertUser(
+                UserEntity(
+                    username = "ogremaster",
+                    password = "ogremaster",
+                    role = "ORGANIZER",
+                    fullName = "Ogre Master",
+                    affiliation = "Midnight Ogre"
+                )
+            )
         }
 
         // 2. No more dummy players
@@ -258,6 +270,10 @@ class TournamentRepository(private val context: Context) {
     fun getMatchesForTournament(tournamentId: Long): Flow<List<MatchEntity>> = matchDao.getMatchesForTournamentFlow(tournamentId)
 
     suspend fun addPlayer(player: PlayerEntity): Long = playerDao.insertPlayer(player)
+
+    suspend fun getAllPlayersList(): List<PlayerEntity> = withContext(Dispatchers.IO) {
+        playerDao.getRegisteredPlayersList()
+    }
 
     fun getMatchesForCurrentRound(tournamentId: Long, roundNumber: Int): Flow<List<MatchEntity>> {
         return matchDao.getMatchesForRoundFlow(tournamentId, roundNumber)

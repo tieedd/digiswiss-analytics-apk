@@ -55,12 +55,12 @@ fun SidebarDrawerContent(
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.digiswiss_main_badge_1789440902605),
+                        painter = painterResource(id = R.drawable.logo_digiswiss),
                         contentDescription = "DigiSwiss Logo",
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
+                            .padding(2.dp),
+                        contentScale = ContentScale.Fit
                     )
                 }
 

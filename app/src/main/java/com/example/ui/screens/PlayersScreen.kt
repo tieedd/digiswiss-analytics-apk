@@ -22,17 +22,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.PlayerEntity
+import com.example.data.local.MatchEntity
 import com.example.ui.components.AddPlayerDialog
 import com.example.ui.components.DigimonColorBadge
 import com.example.ui.theme.CyberCardBorder
@@ -57,6 +62,7 @@ import com.example.ui.theme.CyberNavyBg
 import com.example.ui.theme.DigiCyan
 import com.example.ui.theme.DigiGold
 import com.example.ui.theme.DigiGreen
+import com.example.ui.theme.DigiRed
 import com.example.ui.theme.TextMuted
 
 import com.example.data.local.UserEntity
@@ -64,13 +70,16 @@ import com.example.data.local.UserEntity
 @Composable
 fun PlayersScreen(
     players: List<PlayerEntity>,
+    matches: List<MatchEntity>,
     currentUser: UserEntity?,
     onPlayerClick: (PlayerEntity) -> Unit,
     onAddNewPlayer: (name: String, handle: String, bandaiUid: String) -> Unit,
+    onDeletePlayer: ((PlayerEntity) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
+    var playerToDelete by remember { mutableStateOf<PlayerEntity?>(null) }
 
     val filteredPlayers = remember(players, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -86,6 +95,7 @@ fun PlayersScreen(
 
     if (showAddDialog) {
         AddPlayerDialog(
+            existingPlayers = players,
             onDismiss = { showAddDialog = false },
             onConfirmAdd = { name, handle, bandaiUid ->
                 onAddNewPlayer(name, handle, bandaiUid)
@@ -184,7 +194,13 @@ fun PlayersScreen(
 
             // Player Items
             items(filteredPlayers) { player ->
-                val winRate = player.winRatePercent
+                val playerMatches = matches.filter { it.player1Id == player.id || it.player2Id == player.id }
+                val totalWins = player.totalWins + playerMatches.count { it.isReported && it.winnerId == player.id }
+                val totalLosses = player.totalLosses + playerMatches.count { it.isReported && it.winnerId != null && it.winnerId != player.id && !it.isDraw }
+                val totalDraws = player.totalDraws + playerMatches.count { it.isReported && it.isDraw }
+                val totalMatchesPlayed = totalWins + totalLosses + totalDraws
+                val winRate = if (totalMatchesPlayed > 0) (totalWins.toDouble() / totalMatchesPlayed.toDouble()) * 100.0 else 0.0
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -247,7 +263,7 @@ fun PlayersScreen(
                             }
                         }
 
-                        // Player Record & WinRate
+                        // Player Record & WinRate & Delete Option
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
@@ -257,12 +273,28 @@ fun PlayersScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "${player.totalWins}W - ${player.totalLosses}L",
+                                    text = "${totalWins}W - ${totalLosses}L",
                                     color = TextMuted,
                                     fontSize = 11.sp
                                 )
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            if (onDeletePlayer != null) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = { playerToDelete = player },
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .testTag("delete_player_btn_${player.id}")
+                                ) {
+                                    Icon(
+                                        Icons.Default.DeleteOutline,
+                                        contentDescription = "Hapus Pemain ${player.name}",
+                                        tint = DigiRed.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 Icons.Default.ChevronRight,
                                 contentDescription = null,
@@ -274,5 +306,46 @@ fun PlayersScreen(
                 }
             }
         }
+    }
+
+    if (playerToDelete != null) {
+        val target = playerToDelete!!
+        AlertDialog(
+            onDismissRequest = { playerToDelete = null },
+            title = {
+                Text(
+                    text = "Hapus Pemain?",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Apakah Anda yakin ingin menghapus data pemain '${target.name}' (${target.handle}) dari database? Data pemain ini akan dihapus secara permanen.",
+                    color = Color.LightGray,
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val p = target
+                        playerToDelete = null
+                        onDeletePlayer?.invoke(p)
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = DigiRed)
+                ) {
+                    Text("Hapus", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { playerToDelete = null }) {
+                    Text("Batal", color = Color.Gray)
+                }
+            },
+            containerColor = CyberCardSurface,
+            textContentColor = Color.LightGray,
+            titleContentColor = Color.White
+        )
     }
 }

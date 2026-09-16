@@ -125,7 +125,7 @@ fun LoginScreen(
             // App Branding Logo
             Box(
                 modifier = Modifier
-                    .size(104.dp)
+                    .size(110.dp)
                     .clip(CircleShape)
                     .background(CyberCardElevated)
                     .border(
@@ -140,12 +140,12 @@ fun LoginScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.digiswiss_main_badge_1789440902605),
+                    painter = painterResource(id = R.drawable.logo_digiswiss),
                     contentDescription = "DigiSwiss Main Logo",
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+                        .padding(4.dp),
+                    contentScale = ContentScale.Fit
                 )
             }
 
@@ -387,8 +387,8 @@ fun LoginScreen(
                                 .background(CyberCardElevated)
                                 .border(1.dp, DigiCyan.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                                 .clickable {
-                                    username = "organizer_a"
-                                    password = "password123"
+                                    username = "ogremaster"
+                                    password = "ogremaster"
                                     errorMessage = null
                                 }
                                 .padding(vertical = 8.dp, horizontal = 6.dp),
@@ -403,7 +403,7 @@ fun LoginScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "EO Toko A",
+                                    text = "EO Midnight Ogre",
                                     color = DigiCyan,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold

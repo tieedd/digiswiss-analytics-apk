@@ -239,7 +239,8 @@ fun DigiSwissApp(
     if (showNewTournamentDialog) {
         NewTournamentDialog(
             allPlayers = players,
-            defaultOrganizer = if (currentUser?.isOrganizer == true) currentUser?.fullName ?: "DigiSwiss Organizer" else "DigiSwiss Organizer",
+            defaultOrganizer = if (currentUser?.isOrganizer == true) currentUser?.affiliation ?: currentUser?.fullName ?: "DigiSwiss Organizer" else "DigiSwiss Organizer",
+            currentUser = currentUser,
             onDismiss = { showNewTournamentDialog = false },
             onAddNewPlayerClick = { showAddPlayerDialog = true },
             onConfirmCreate = { name, dateText, totalRounds, durationMins, location, matchFormat, selectedPlayerIds ->
@@ -259,6 +260,7 @@ fun DigiSwissApp(
 
     if (showAddPlayerDialog) {
         AddPlayerDialog(
+            existingPlayers = players,
             onDismiss = { showAddPlayerDialog = false },
             onConfirmAdd = { name, handle, bandaiUid ->
                 viewModel.addNewPlayer(name, handle, bandaiUid)
@@ -275,6 +277,9 @@ fun DigiSwissApp(
             onDismiss = { viewModel.selectPlayerForDetails(null) },
             onEditClick = { player ->
                 playerToEdit = player
+            },
+            onDeleteClick = { player ->
+                viewModel.deletePlayer(player.id)
             }
         )
     }
@@ -282,6 +287,7 @@ fun DigiSwissApp(
     if (playerToEdit != null) {
         EditPlayerDialog(
             player = playerToEdit!!,
+            existingPlayers = players,
             onDismiss = { playerToEdit = null },
             onConfirmSave = { name, handle, bandaiUid, archetype, color ->
                 val updated = playerToEdit!!.copy(
@@ -345,12 +351,12 @@ fun DigiSwissApp(
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
-                                painter = painterResource(id = R.drawable.digiswiss_main_badge_1789440902605),
+                                painter = painterResource(id = R.drawable.logo_digiswiss),
                                 contentDescription = "DigiSwiss Main Logo",
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
+                                    .padding(2.dp),
+                                contentScale = ContentScale.Fit
                             )
                         }
 
@@ -495,7 +501,8 @@ fun DigiSwissApp(
                         currentUser = currentUser,
                         onOpenAuthDialog = { showLoginRegisterDialog = true },
                         onOpenAdminDialog = { showAdminManagementDialog = true },
-                        onNavigateToStandings = { currentNavIndex = 1 }
+                        onNavigateToStandings = { currentNavIndex = 1 },
+                        onOpenNewTournamentDialog = { showNewTournamentDialog = true }
                     )
                     1 -> StandingsScreen(
                         standings = standings,
@@ -516,12 +523,16 @@ fun DigiSwissApp(
                     )
                     3 -> PlayersScreen(
                         players = players,
+                        matches = matches,
                         currentUser = currentUser,
                         onPlayerClick = { player ->
                             viewModel.selectPlayerForDetails(player)
                         },
                         onAddNewPlayer = { name, handle, bandaiUid ->
                             viewModel.addNewPlayer(name, handle, bandaiUid)
+                        },
+                        onDeletePlayer = { player ->
+                            viewModel.deletePlayer(player.id)
                         }
                     )
                 }

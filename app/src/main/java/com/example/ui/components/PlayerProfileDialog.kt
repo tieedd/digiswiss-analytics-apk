@@ -18,18 +18,25 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.SportsScore
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,8 +64,10 @@ fun PlayerProfileDialog(
     allPlayers: List<PlayerEntity>,
     matches: List<MatchEntity>,
     onDismiss: () -> Unit,
-    onEditClick: ((PlayerEntity) -> Unit)? = null
+    onEditClick: ((PlayerEntity) -> Unit)? = null,
+    onDeleteClick: ((PlayerEntity) -> Unit)? = null
 ) {
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     val playerMap = remember(allPlayers) { allPlayers.associateBy { it.id } }
     val playerMatches = remember(matches, player.id) {
         matches.filter { it.player1Id == player.id || it.player2Id == player.id }
@@ -148,6 +157,19 @@ fun PlayerProfileDialog(
                                     Icons.Default.Edit,
                                     contentDescription = "Edit Data Pemain",
                                     tint = DigiCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        if (onDeleteClick != null) {
+                            IconButton(
+                                onClick = { showDeleteConfirmDialog = true },
+                                modifier = Modifier.testTag("delete_player_profile_btn")
+                            ) {
+                                Icon(
+                                    Icons.Default.DeleteOutline,
+                                    contentDescription = "Hapus Pemain",
+                                    tint = DigiRed,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -345,5 +367,45 @@ fun PlayerProfileDialog(
                 }
             }
         }
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = {
+                Text(
+                    text = "Hapus Pemain?",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Apakah Anda yakin ingin menghapus data pemain '${player.name}' (${player.handle}) dari database? Data pemain ini akan dihapus secara permanen.",
+                    color = Color.LightGray,
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteClick?.invoke(player)
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = DigiRed)
+                ) {
+                    Text("Hapus", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Batal", color = Color.Gray)
+                }
+            },
+            containerColor = CyberCardSurface,
+            textContentColor = Color.LightGray,
+            titleContentColor = Color.White
+        )
     }
 }
