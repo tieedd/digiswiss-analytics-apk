@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.SportsScore
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -476,13 +477,30 @@ fun TournamentScreen(
         // Timer Card
         item {
             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                RoundTimerCard(
-                    roundNumber = selectedRound,
-                    totalSeconds = timerSeconds,
-                    isRunning = isTimerRunning,
-                    onToggleTimer = { viewModel.toggleRoundTimer() },
-                    onResetTimer = { viewModel.resetRoundTimer() }
-                )
+                Column {
+                    RoundTimerCard(
+                        roundNumber = selectedRound,
+                        totalSeconds = timerSeconds,
+                        isRunning = isTimerRunning,
+                        onToggleTimer = { viewModel.toggleRoundTimer() },
+                        onResetTimer = { viewModel.resetRoundTimer() }
+                    )
+                    
+                    if (tournament != null && tournament.currentRound > 1 && selectedRound == tournament.currentRound && (currentUser?.isAdmin == true || currentUser?.isOrganizer == true)) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { viewModel.revertToPreviousRound() },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = DigiRed),
+                            border = BorderStroke(1.dp, DigiRed.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Kembali ke Ronde Sebelumnya (Hapus Pairing)")
+                        }
+                    }
+                }
             }
         }
 
@@ -694,6 +712,8 @@ fun TournamentScreen(
                                 tournament.enrolledList.mapNotNull { playerMap[it] }
                             }
                             
+                            var allDecksSet = true
+
                             playersToShow.forEach { p ->
                                 val playerTourneyMatch = matches.firstOrNull {
                                     (it.player1Id == p.id && it.p1DeckArchetype.isNotBlank() && it.p1DeckArchetype != "Unknown") ||
@@ -715,6 +735,7 @@ fun TournamentScreen(
                                     ?: p.deckColor.takeIf { it.isNotBlank() && it != "UNKNOWN" }
 
                                 val isDeckSet = !resolvedArchetype.isNullOrBlank() && resolvedArchetype != "Unknown"
+                                if (!isDeckSet) allDecksSet = false
 
                                 Row(
                                     modifier = Modifier
@@ -733,7 +754,7 @@ fun TournamentScreen(
                                             fontWeight = FontWeight.Medium,
                                             fontSize = 13.sp,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                         )
                                         if (isDeckSet && resolvedColor != null && resolvedArchetype != null) {
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -745,7 +766,7 @@ fun TournamentScreen(
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 12.sp,
                                                 maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -778,6 +799,22 @@ fun TournamentScreen(
                                             color = if (isDeckSet) DigiGold else DigiCyan
                                         )
                                     }
+                                }
+                            }
+                            
+                            if (allDecksSet && (currentUser?.isAdmin == true || currentUser?.isOrganizer == true)) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = { viewModel.advanceToNextRound() },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = DigiGold),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = "Akhiri Tournament",
+                                        color = Color(0xFF0F172A),
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }

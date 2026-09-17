@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,7 +48,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.util.CsvHelper
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -75,11 +81,23 @@ fun PlayersScreen(
     onPlayerClick: (PlayerEntity) -> Unit,
     onAddNewPlayer: (name: String, handle: String, bandaiUid: String) -> Unit,
     onDeletePlayer: ((PlayerEntity) -> Unit)? = null,
+    onImportPlayers: ((List<PlayerEntity>) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
     var playerToDelete by remember { mutableStateOf<PlayerEntity?>(null) }
+    
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            uri?.let {
+                val imported = CsvHelper.importPlayersFromCsv(context, it)
+                onImportPlayers?.invoke(imported)
+            }
+        }
+    )
 
     val filteredPlayers = remember(players, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -142,25 +160,45 @@ fun PlayersScreen(
                         }
 
                         if (currentUser?.isAdmin == true || currentUser?.isOrganizer == true) {
-                            Button(
-                                onClick = { showAddDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = DigiCyan),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.testTag("add_player_top_button")
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = null,
-                                    tint = Color(0xFF0F172A),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Tambah Pemain",
-                                    color = Color(0xFF0F172A),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
+                            Row {
+                                IconButton(
+                                    onClick = { 
+                                        val csv = CsvHelper.exportPlayersToCsv(players)
+                                        CsvHelper.shareCsv(context, csv, "Peserta_DigiSwiss")
+                                    },
+                                    modifier = Modifier.size(36.dp).background(DigiGold.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = "Export CSV", tint = DigiGold, modifier = Modifier.size(18.dp))
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                IconButton(
+                                    onClick = { importLauncher.launch(arrayOf("text/*", "text/csv", "application/csv")) },
+                                    modifier = Modifier.size(36.dp).background(DigiCyan.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                ) {
+                                    Icon(Icons.Default.Upload, contentDescription = "Import CSV", tint = DigiCyan, modifier = Modifier.size(18.dp))
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = { showAddDialog = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = DigiCyan),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.testTag("add_player_top_button").height(36.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = null,
+                                        tint = Color(0xFF0F172A),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Tambah Pemain",
+                                        color = Color(0xFF0F172A),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                         }
                     }

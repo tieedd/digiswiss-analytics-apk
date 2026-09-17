@@ -102,11 +102,11 @@ fun PlayerProfileDialog(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Top
                 ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
@@ -131,22 +131,25 @@ fun PlayerProfileDialog(
                                 text = player.name,
                                 color = Color.White,
                                 fontWeight = FontWeight.Black,
-                                fontSize = 18.sp
+                                fontSize = 18.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = player.handle,
-                                    color = TextMuted,
-                                    fontSize = 12.sp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "• UID: ${if (player.bandaiUid.isNotBlank()) player.bandaiUid else "-"}",
-                                    color = if (player.bandaiUid.isNotBlank() && player.bandaiUid != "-") DigiCyan else TextMuted,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (player.bandaiUid.isNotBlank() && player.bandaiUid != "-") FontWeight.SemiBold else FontWeight.Normal
-                                )
-                            }
+                            Text(
+                                text = player.handle,
+                                color = TextMuted,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "UID: ${if (player.bandaiUid.isNotBlank()) player.bandaiUid else "-"}",
+                                color = if (player.bandaiUid.isNotBlank() && player.bandaiUid != "-") DigiCyan else TextMuted,
+                                fontSize = 12.sp,
+                                fontWeight = if (player.bandaiUid.isNotBlank() && player.bandaiUid != "-") FontWeight.SemiBold else FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                     }
 

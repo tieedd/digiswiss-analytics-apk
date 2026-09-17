@@ -311,6 +311,21 @@ class TournamentRepository(private val context: Context) {
         )
     }
 
+    suspend fun revertToPreviousRound(tournamentId: Long) = withContext(Dispatchers.IO) {
+        val tournament = tournamentDao.getTournamentById(tournamentId) ?: return@withContext
+        if (tournament.currentRound <= 1) return@withContext
+
+        // Delete matches for the current round
+        val currentRoundMatches = matchDao.getMatchesForTournament(tournamentId).filter { it.roundNumber == tournament.currentRound }
+        for (match in currentRoundMatches) {
+            matchDao.deleteMatch(match)
+        }
+
+        // Decrement round
+        val prevRound = tournament.currentRound - 1
+        tournamentDao.updateTournament(tournament.copy(currentRound = prevRound, status = "ACTIVE"))
+    }
+
     suspend fun advanceToNextRound(tournamentId: Long) = withContext(Dispatchers.IO) {
         val tournament = tournamentDao.getTournamentById(tournamentId) ?: return@withContext
         val allPastMatches = matchDao.getMatchesForTournament(tournamentId)
@@ -348,6 +363,14 @@ class TournamentRepository(private val context: Context) {
             "Pairing Ronde $nextRoundNum Tersedia!",
             "Pairing ronde $nextRoundNum telah dirilis. Silakan menuju meja pertandingan masing-masing."
         )
+    }
+
+    suspend fun insertImportedTournament(tournament: TournamentEntity): Long {
+        return tournamentDao.insertTournament(tournament)
+    }
+
+    suspend fun insertMatches(matches: List<MatchEntity>) {
+        matchDao.insertMatches(matches)
     }
 
     suspend fun createNewTournament(

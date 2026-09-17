@@ -280,50 +280,83 @@ object SwissPairingEngine {
             )
         }
 
-        // Swiss Matching with rematch avoidance
-        val unassigned = playerList.toMutableList()
-        while (unassigned.isNotEmpty()) {
-            val p1 = unassigned.removeAt(0)
-            var partnerIndex = -1
+        // Swiss Matching with rematch avoidance using backtracking
+        var finalPairs = mutableListOf<Pair<PlayerEntity, PlayerEntity>>()
+        
+        fun findValidPairing(
+            remaining: List<PlayerEntity>,
+            currentPairings: List<Pair<PlayerEntity, PlayerEntity>>
+        ): List<Pair<PlayerEntity, PlayerEntity>>? {
+            if (remaining.isEmpty()) return currentPairings
 
-            // Find first opponent in order that hasn't played against p1
-            for (i in unassigned.indices) {
-                val candidate = unassigned[i]
-                if (Pair(p1.id, candidate.id) !in playedPairs) {
-                    partnerIndex = i
-                    break
+            val p1 = remaining[0]
+            val candidates = remaining.drop(1)
+
+            for (i in candidates.indices) {
+                val p2 = candidates[i]
+                if (Pair(p1.id, p2.id) !in playedPairs) {
+                    val nextRemaining = candidates.toMutableList().apply { removeAt(i) }
+                    val nextPairings = currentPairings + Pair(p1, p2)
+                    val result = findValidPairing(nextRemaining, nextPairings)
+                    if (result != null) return result
                 }
             }
+            return null
+        }
 
-            // Fallback if everyone in remaining pool has played p1
-            if (partnerIndex == -1 && unassigned.isNotEmpty()) {
-                partnerIndex = 0
+        val backtrackResult = findValidPairing(playerList, emptyList())
+        if (backtrackResult != null) {
+            finalPairs.addAll(backtrackResult)
+        } else {
+            // Fallback greedy if absolutely impossible to prevent rematch
+            val unassigned = playerList.toMutableList()
+            while (unassigned.isNotEmpty()) {
+                val p1 = unassigned.removeAt(0)
+                var partnerIndex = -1
+
+                for (i in unassigned.indices) {
+                    val candidate = unassigned[i]
+                    if (Pair(p1.id, candidate.id) !in playedPairs) {
+                        partnerIndex = i
+                        break
+                    }
+                }
+
+                if (partnerIndex == -1 && unassigned.isNotEmpty()) {
+                    partnerIndex = 0
+                }
+
+                if (partnerIndex != -1) {
+                    val p2 = unassigned.removeAt(partnerIndex)
+                    finalPairs.add(Pair(p1, p2))
+                }
             }
+        }
 
-            if (partnerIndex != -1) {
-                val p2 = unassigned.removeAt(partnerIndex)
-                val (first, second) = if (kotlin.random.Random.nextBoolean()) Pair(p1, p2) else Pair(p2, p1)
-                generatedMatches.add(
-                    MatchEntity(
-                        tournamentId = tournamentId,
-                        roundNumber = roundNumber,
-                        tableNumber = tableNum++,
-                        player1Id = first.id,
-                        player2Id = second.id,
-                        p1DeckArchetype = if (first.deckArchetype != "Unknown") first.deckArchetype else "",
-                        p1DeckColor = if (first.deckColor != "UNKNOWN") first.deckColor else "",
-                        p2DeckArchetype = if (second.deckArchetype != "Unknown") second.deckArchetype else "",
-                        p2DeckColor = if (second.deckColor != "UNKNOWN") second.deckColor else "",
-                        p1Score = 0,
-                        p2Score = 0,
-                        isDraw = false,
-                        isBye = false,
-                        winnerId = null,
-                        isReported = false,
-                        matchDurationMinutes = 0
-                    )
+        for (pair in finalPairs) {
+            val p1 = pair.first
+            val p2 = pair.second
+            val (first, second) = if (kotlin.random.Random.nextBoolean()) Pair(p1, p2) else Pair(p2, p1)
+            generatedMatches.add(
+                MatchEntity(
+                    tournamentId = tournamentId,
+                    roundNumber = roundNumber,
+                    tableNumber = tableNum++,
+                    player1Id = first.id,
+                    player2Id = second.id,
+                    p1DeckArchetype = if (first.deckArchetype != "Unknown") first.deckArchetype else "",
+                    p1DeckColor = if (first.deckColor != "UNKNOWN") first.deckColor else "",
+                    p2DeckArchetype = if (second.deckArchetype != "Unknown") second.deckArchetype else "",
+                    p2DeckColor = if (second.deckColor != "UNKNOWN") second.deckColor else "",
+                    p1Score = 0,
+                    p2Score = 0,
+                    isDraw = false,
+                    isBye = false,
+                    winnerId = null,
+                    isReported = false,
+                    matchDurationMinutes = 0
                 )
-            }
+            )
         }
 
         return generatedMatches.sortedBy { if (it.isBye) 9999 else it.tableNumber }

@@ -5,6 +5,10 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.MatchEntity
+import com.example.service.RoundTimerService
+import com.example.service.TimerManager
+import android.content.Intent
+import androidx.core.content.ContextCompat
 import com.example.data.local.PlayerEntity
 import com.example.data.local.TournamentEntity
 import com.example.data.local.UserEntity
@@ -48,8 +52,8 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _selectedRound = MutableStateFlow(1)
     private val _selectedPlayer = MutableStateFlow<PlayerEntity?>(null)
-    private val _timerSeconds = MutableStateFlow(45 * 60)
-    private val _isTimerRunning = MutableStateFlow(false)
+    val timerSeconds: StateFlow<Int> = TimerManager.timerSeconds
+    val isTimerRunning: StateFlow<Boolean> = TimerManager.isTimerRunning
     private val _inAppNotification = MutableStateFlow<InAppAlert?>(null)
     private val _playerSearchQuery = MutableStateFlow("")
 
@@ -90,7 +94,7 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
             repository.activeTournamentFlow.collect { tourney ->
                 if (tourney != null) {
                     _selectedRound.value = tourney.currentRound
-                    _timerSeconds.value = tourney.roundDurationMinutes * 60
+                    TimerManager.setTimerSeconds(tourney.roundDurationMinutes * 60)
 
                     launch {
                         repository.getMatchesForTournament(tourney.id).collect { matches ->
@@ -129,8 +133,6 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
 
     val selectedRound: StateFlow<Int> = _selectedRound.asStateFlow()
     val selectedPlayer: StateFlow<PlayerEntity?> = _selectedPlayer.asStateFlow()
-    val timerSeconds: StateFlow<Int> = _timerSeconds.asStateFlow()
-    val isTimerRunning: StateFlow<Boolean> = _isTimerRunning.asStateFlow()
     val inAppNotification: StateFlow<InAppAlert?> = _inAppNotification.asStateFlow()
     val playerSearchQuery: StateFlow<String> = _playerSearchQuery.asStateFlow()
 
@@ -261,42 +263,33 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun toggleRoundTimer() {
-        val currentRunning = _isTimerRunning.value
+        val currentRunning = TimerManager.isTimerRunning.value
+        val context = getApplication<Application>()
         if (currentRunning) {
-            timerJob?.cancel()
-            _isTimerRunning.value = false
-        } else {
-            _isTimerRunning.value = true
-            timerJob = viewModelScope.launch {
-                showInAppNotification(
-                    "Timer Pertandingan Dimulai",
-                    "Waktu ronde sedang berjalan. Pemain memiliki 3 giliran tambahan jika waktu habis."
-                )
-                while (_timerSeconds.value > 0 && _isTimerRunning.value) {
-                    delay(1000)
-                    _timerSeconds.value = _timerSeconds.value - 1
-                }
-                if (_timerSeconds.value <= 0) {
-                    _isTimerRunning.value = false
-                    showInAppNotification(
-                        "WAKTU HABIS! Extra Turns",
-                        "Waktu ronde telah habis! Jalankan aturan 3 giliran tambahan (Turn 0-3)."
-                    )
-                    NotificationHelper.sendTournamentNotification(
-                        getApplication(),
-                        7777,
-                        "WAKTU RONDE HABIS!",
-                        "Waktu ronde habis. Selesaikan 3 giliran tambahan (Turn 0-3)."
-                    )
-                }
+            val intent = Intent(context, RoundTimerService::class.java).apply {
+                action = "STOP_TIMER"
             }
+            context.startService(intent)
+        } else {
+            val intent = Intent(context, RoundTimerService::class.java).apply {
+                putExtra("SECONDS", TimerManager.timerSeconds.value)
+            }
+            ContextCompat.startForegroundService(context, intent)
+            showInAppNotification(
+                "Timer Pertandingan Dimulai",
+                "Waktu ronde sedang berjalan. Pemain memiliki 3 giliran tambahan jika waktu habis."
+            )
         }
     }
 
     fun resetRoundTimer(minutes: Int = 45) {
-        timerJob?.cancel()
-        _isTimerRunning.value = false
-        _timerSeconds.value = minutes * 60
+        val context = getApplication<Application>()
+        val intent = Intent(context, RoundTimerService::class.java).apply {
+            action = "STOP_TIMER"
+        }
+        context.startService(intent)
+        TimerManager.setTimerRunning(false)
+        TimerManager.setTimerSeconds(minutes * 60)
     }
 
     fun reportScore(
@@ -363,6 +356,20 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             repository.enrollPlayerToTournament(tournamentId, playerId)
             showInAppNotification("Pemain Diikutsertakan", "Pemain berhasil didaftarkan ke dalam turnamen ini.")
+        }
+    }
+
+    fun revertToPreviousRound() {
+        val tourney = activeTournamentFlow.value ?: return
+        if (tourney.currentRound <= 1) return
+        viewModelScope.launch {
+            repository.revertToPreviousRound(tourney.id)
+            _selectedRound.value = tourney.currentRound - 1
+            resetRoundTimer(tourney.roundDurationMinutes)
+            showInAppNotification(
+                "Kembali ke Ronde ${tourney.currentRound - 1}",
+                "Pairing ronde berjalan telah dihapus."
+            )
         }
     }
 
@@ -570,6 +577,24 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             repository.updatePlayer(player)
             showInAppNotification("Data Pemain Diubah", "Pemain ${player.name} berhasil diperbarui.")
+        }
+    }
+
+    fun importPlayers(players: List<PlayerEntity>) {
+        viewModelScope.launch {
+            players.forEach { p ->
+                repository.addPlayer(p)
+            }
+            showInAppNotification("Import Berhasil", "${players.size} pemain telah ditambahkan.")
+        }
+    }
+
+    fun importTournament(tournament: TournamentEntity, matches: List<MatchEntity>) {
+        viewModelScope.launch {
+            val newId = repository.insertImportedTournament(tournament)
+            val matchesWithId = matches.map { it.copy(tournamentId = newId) }
+            repository.insertMatches(matchesWithId)
+            showInAppNotification("Import Turnamen Berhasil", "Turnamen ${tournament.name} telah diimpor.")
         }
     }
 

@@ -167,6 +167,8 @@ fun DigiSwissApp(
     val inAppNotification by viewModel.inAppNotification.collectAsState()
     val selectedPlayer by viewModel.selectedPlayer.collectAsState()
 
+    val allMatches by viewModel.allMatchesFlow.collectAsState()
+
     // Loading session gate
     if (isAuthChecking) {
         Box(
@@ -232,6 +234,14 @@ fun DigiSwissApp(
             },
             onDeleteTournament = { tourneyId ->
                 viewModel.adminDeleteTournament(tourneyId)
+            },
+            onExportTournament = { tourney ->
+                val tourneyMatches = allMatches.filter { it.tournamentId == tourney.id }
+                val csvData = com.example.util.CsvHelper.exportTournamentToCsv(tourney, tourneyMatches)
+                com.example.util.CsvHelper.shareCsv(context, csvData, "Turnamen_${tourney.name.replace(" ", "_")}")
+            },
+            onImportTournament = { tourney, matches ->
+                viewModel.importTournament(tourney, matches)
             }
         )
     }
@@ -533,6 +543,9 @@ fun DigiSwissApp(
                         },
                         onDeletePlayer = { player ->
                             viewModel.deletePlayer(player.id)
+                        },
+                        onImportPlayers = { imported ->
+                            viewModel.importPlayers(imported)
                         }
                     )
                 }

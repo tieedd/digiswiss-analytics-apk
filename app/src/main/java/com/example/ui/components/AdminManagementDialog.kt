@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -51,6 +52,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.local.TournamentEntity
 import com.example.data.local.UserEntity
+import com.example.data.local.MatchEntity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.filled.Upload
 import com.example.ui.theme.CyberCardBorder
 import com.example.ui.theme.CyberCardElevated
 import com.example.ui.theme.CyberCardSurface
@@ -66,8 +73,11 @@ fun AdminManagementDialog(
     onCreateOrganizer: (username: String, pass: String, fullName: String, affiliation: String) -> Unit,
     onUpdateUser: (UserEntity) -> Unit,
     onDeleteUser: (Long) -> Unit,
-    onDeleteTournament: (Long) -> Unit
+    onDeleteTournament: (Long) -> Unit,
+    onExportTournament: (TournamentEntity) -> Unit,
+    onImportTournament: ((TournamentEntity, List<MatchEntity>) -> Unit)? = null
 ) {
+    val context = LocalContext.current
     var activeTab by remember { mutableStateOf("USERS") } // "USERS" or "TOURNAMENTS"
     var showCreateOrganizerDialog by remember { mutableStateOf(false) }
     var editingUser by remember { mutableStateOf<UserEntity?>(null) }
@@ -285,6 +295,31 @@ fun AdminManagementDialog(
                     }
                 } else {
                     // === TOURNAMENTS & HISTORI TAB ===
+                    item {
+                        val importTourneyLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.OpenDocument(),
+                            onResult = { uri ->
+                                uri?.let {
+                                    val imported = com.example.util.CsvHelper.importTournamentFromCsv(context, it)
+                                    if (imported != null) {
+                                        onImportTournament?.invoke(imported.first, imported.second)
+                                    }
+                                }
+                            }
+                        )
+                        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.End) {
+                            Button(
+                                onClick = { importTourneyLauncher.launch(arrayOf("text/*", "text/csv", "application/csv")) },
+                                colors = ButtonDefaults.buttonColors(containerColor = DigiCyan),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF0F172A))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Import Turnamen (CSV)", color = Color(0xFF0F172A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     items(tournaments) { tourney ->
                         Box(
                             modifier = Modifier
@@ -326,12 +361,20 @@ fun AdminManagementDialog(
                                     }
                                 }
 
+                            Row {
+                                IconButton(
+                                    onClick = { onExportTournament(tourney) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Share, contentDescription = "Export CSV", tint = DigiCyan, modifier = Modifier.size(16.dp))
+                                }
                                 IconButton(
                                     onClick = { onDeleteTournament(tourney.id) },
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = "Hapus", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
                                 }
+                            }
                             }
                         }
                     }
