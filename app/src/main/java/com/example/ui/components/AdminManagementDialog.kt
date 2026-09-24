@@ -309,7 +309,19 @@ fun AdminManagementDialog(
                         )
                         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.End) {
                             Button(
-                                onClick = { importTourneyLauncher.launch(arrayOf("text/*", "text/csv", "application/csv")) },
+                                onClick = {
+                                    importTourneyLauncher.launch(
+                                        arrayOf(
+                                            "text/*",
+                                            "text/csv",
+                                            "text/comma-separated-values",
+                                            "application/csv",
+                                            "application/vnd.ms-excel",
+                                            "application/octet-stream",
+                                            "*/*"
+                                        )
+                                    )
+                                },
                                 colors = ButtonDefaults.buttonColors(containerColor = DigiCyan),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                 modifier = Modifier.height(32.dp)

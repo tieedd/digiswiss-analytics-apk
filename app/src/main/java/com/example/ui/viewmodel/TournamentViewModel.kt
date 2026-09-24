@@ -2,42 +2,39 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.MatchEntity
-import com.example.service.RoundTimerService
-import com.example.service.TimerManager
-import android.content.Intent
-import androidx.core.content.ContextCompat
 import com.example.data.local.PlayerEntity
 import com.example.data.local.TournamentEntity
 import com.example.data.local.UserEntity
-
+import com.example.data.repository.AdvanceResult
 import com.example.data.repository.TournamentRepository
+import com.example.service.RoundTimerService
+import com.example.service.TimerManager
 import com.example.util.AnalyticsEngine
+import com.example.util.CsvHelper
 import com.example.util.IndividualPlayerAnalytics
-import com.example.util.NotificationHelper
 import com.example.util.OverallTournamentAnalytics
 import com.example.util.StandingEntry
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 data class InAppAlert(
     val id: Long = System.currentTimeMillis(),
     val title: String,
     val message: String
 )
-
 
 class TournamentViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = TournamentRepository(application.applicationContext)
@@ -65,76 +62,73 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     private val _selectedStoreFilter = MutableStateFlow("ALL")
     val selectedStoreFilter: StateFlow<String> = _selectedStoreFilter.asStateFlow()
 
-    private val _matchesFlow = MutableStateFlow<List<MatchEntity>>(emptyList())
-    val matchesFlow: StateFlow<List<MatchEntity>> = _matchesFlow.asStateFlow()
-
-    private val _allMatchesFlow = MutableStateFlow<List<MatchEntity>>(emptyList())
-    val allMatchesFlow: StateFlow<List<MatchEntity>> = _allMatchesFlow.asStateFlow()
-
-    private val _standingsFlow = MutableStateFlow<List<StandingEntry>>(emptyList())
-    val standingsFlow: StateFlow<List<StandingEntry>> = _standingsFlow.asStateFlow()
-
-    private var timerJob: Job? = null
-
-    init {
-        viewModelScope.launch {
-            repository.checkAndSeedInitialData()
-            // Check session persistence
-            val savedUserId = authPrefs.getLong("session_user_id", -1L)
-            if (savedUserId != -1L) {
-                val user = repository.getUserById(savedUserId)
-                if (user != null) {
-                    _currentUser.value = user
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val activeTournament: StateFlow<TournamentEntity?> =
+        repository.activeTournamentFlow
+            .onEach { t ->
+                if (t != null) {
+                    _selectedRound.value = t.currentRound
+                    TimerManager.setTimerSeconds(t.roundDurationMinutes * 60)
                 }
             }
-            _isAuthChecking.value = false
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val activeTournamentFlow: StateFlow<TournamentEntity?> = activeTournament
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val matchesFlow: StateFlow<List<MatchEntity>> = activeTournament
+        .flatMapLatest { t ->
+            if (t == null) flowOf(emptyList()) else repository.getMatchesForTournament(t.id)
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-        viewModelScope.launch {
-            repository.activeTournamentFlow.collect { tourney ->
-                if (tourney != null) {
-                    _selectedRound.value = tourney.currentRound
-                    TimerManager.setTimerSeconds(tourney.roundDurationMinutes * 60)
-
-                    launch {
-                        repository.getMatchesForTournament(tourney.id).collect { matches ->
-                            _matchesFlow.value = matches
-                        }
-                    }
-                    launch {
-                        repository.getStandingsFlow(tourney.id).collect { standings ->
-                            _standingsFlow.value = standings
-                        }
-                    }
-                }
-            }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val standingsFlow: StateFlow<List<StandingEntry>> = activeTournament
+        .flatMapLatest { t ->
+            if (t == null) flowOf(emptyList()) else repository.getStandingsFlow(t.id)
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-        viewModelScope.launch {
-            // Collect all matches across database for overall store analytics
-            while (true) {
-                _allMatchesFlow.value = repository.getAllMatches()
-                delay(3000)
-            }
-        }
-    }
-
-    val activeTournamentFlow: StateFlow<TournamentEntity?> = repository.activeTournamentFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val allMatchesFlow: StateFlow<List<MatchEntity>> = repository.allMatchesFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val allTournamentsFlow: StateFlow<List<TournamentEntity>> = repository.allTournamentsFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val allPlayersFlow: StateFlow<List<PlayerEntity>> = repository.allPlayers
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val allUsersFlow: StateFlow<List<UserEntity>> = repository.allUsers
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val selectedRound: StateFlow<Int> = _selectedRound.asStateFlow()
     val selectedPlayer: StateFlow<PlayerEntity?> = _selectedPlayer.asStateFlow()
     val inAppNotification: StateFlow<InAppAlert?> = _inAppNotification.asStateFlow()
     val playerSearchQuery: StateFlow<String> = _playerSearchQuery.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val generatedAdminPassword = repository.checkAndSeedInitialData()
+            if (generatedAdminPassword != null) {
+                showInAppNotification(
+                    "Akun Admin Dibuat",
+                    "Username: masteradmin — Password: $generatedAdminPassword\n" +
+                        "Catat sekarang dan segera ganti. Password ini tidak akan ditampilkan lagi."
+                )
+            }
+
+            val savedUserId = authPrefs.getLong("session_user_id", -1L)
+            if (savedUserId != -1L) {
+                val user = repository.getUserById(savedUserId)
+                if (user != null) {
+                    _currentUser.value = user
+                } else {
+                    authPrefs.edit().remove("session_user_id").apply()
+                }
+            }
+            _isAuthChecking.value = false
+        }
+    }
 
     // --- Authentication ---
     fun login(username: String, password: String, onResult: (Boolean, String?) -> Unit) {
@@ -171,24 +165,34 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         onResult: (Boolean, String?) -> Unit
     ) {
         viewModelScope.launch {
-            if (!repository.checkUsernameAvailable(username)) {
-                onResult(false, "Username '$username' sudah terpakai.")
+            if (username.trim().length < 4) {
+                onResult(false, "Username minimal 4 karakter.")
                 return@launch
             }
-            val (savedUser, savedPlayer) = repository.registerPlayerAccount(
+            if (password.length < 8) {
+                onResult(false, "Password minimal 8 karakter.")
+                return@launch
+            }
+            if (fullName.isBlank()) {
+                onResult(false, "Nama lengkap wajib diisi.")
+                return@launch
+            }
+
+            repository.registerPlayerAccount(
                 username = username,
                 password = password,
                 fullName = fullName,
                 handle = handle,
                 deckArchetype = deckArchetype,
                 deckColors = deckColors
-            )
-            _currentUser.value = savedUser
-            showInAppNotification(
-                "Pendaftaran Berhasil",
-                "Akun Pemain '${savedPlayer.name}' berhasil dibuat dengan deck $deckArchetype!"
-            )
-            onResult(true, null)
+            ).onSuccess { (user, player) ->
+                _currentUser.value = user
+                authPrefs.edit().putLong("session_user_id", user.id).apply()
+                showInAppNotification("Pendaftaran Berhasil", "Akun '${player.name}' berhasil dibuat.")
+                onResult(true, null)
+            }.onFailure {
+                onResult(false, it.message ?: "Pendaftaran gagal.")
+            }
         }
     }
 
@@ -267,12 +271,12 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         val context = getApplication<Application>()
         if (currentRunning) {
             val intent = Intent(context, RoundTimerService::class.java).apply {
-                action = "STOP_TIMER"
+                action = RoundTimerService.ACTION_STOP
             }
             context.startService(intent)
         } else {
             val intent = Intent(context, RoundTimerService::class.java).apply {
-                putExtra("SECONDS", TimerManager.timerSeconds.value)
+                putExtra(RoundTimerService.EXTRA_SECONDS, TimerManager.timerSeconds.value)
             }
             ContextCompat.startForegroundService(context, intent)
             showInAppNotification(
@@ -285,7 +289,7 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     fun resetRoundTimer(minutes: Int = 45) {
         val context = getApplication<Application>()
         val intent = Intent(context, RoundTimerService::class.java).apply {
-            action = "STOP_TIMER"
+            action = RoundTimerService.ACTION_STOP
         }
         context.startService(intent)
         TimerManager.setTimerRunning(false)
@@ -310,11 +314,11 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
                 winnerId = winnerId,
                 durationMinutes = durationMinutes,
                 firstTurnPlayerId = firstTurnPlayerId
-            )
-            showInAppNotification(
-                "Skor Berhasil Disimpan",
-                "Hasil $p1Score - $p2Score tersimpan. Peringkat klasemen diperbarui secara real-time!"
-            )
+            ).onSuccess {
+                showInAppNotification("Skor Tersimpan", "Hasil $p1Score - $p2Score tersimpan. Klasemen diperbarui.")
+            }.onFailure {
+                showInAppNotification("Skor Ditolak", it.message ?: "Data pertandingan tidak valid.")
+            }
         }
     }
 
@@ -343,7 +347,6 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     fun setPlayerDeckForTournament(tournamentId: Long, playerId: Long, archetype: String, colors: String) {
         viewModelScope.launch {
             repository.setPlayerDeckForTournament(tournamentId, playerId, archetype, colors)
-            _allMatchesFlow.value = repository.getAllMatches()
             showInAppNotification(
                 "Deck Tersimpan",
                 "Deck '$archetype' berhasil disimpan untuk statistik pemain di turnamen ini."
@@ -376,20 +379,27 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     fun advanceToNextRound() {
         val tourney = activeTournamentFlow.value ?: return
         viewModelScope.launch {
-            repository.advanceToNextRound(tourney.id)
-            _selectedRound.value = tourney.currentRound + 1
-            resetRoundTimer(tourney.roundDurationMinutes)
-            showInAppNotification(
-                "Ronde ${tourney.currentRound + 1} Dimulai",
-                "Pairing baru telah di-generate otomatis dengan sistem Swiss tanpa tanding ulang!"
-            )
+            when (val res = repository.advanceToNextRound(tourney.id, tourney.currentRound)) {
+                is AdvanceResult.Success -> {
+                    _selectedRound.value = res.round
+                    resetRoundTimer(tourney.roundDurationMinutes)
+                    val warn = if (res.forcedRematches > 0)
+                        " Catatan: ${res.forcedRematches} meja terpaksa mengulang lawan lama karena kombinasi tersisa sudah habis."
+                    else ""
+                    showInAppNotification("Ronde ${res.round} Dimulai", "Pairing Swiss baru telah dibuat.$warn")
+                }
+                AdvanceResult.TournamentFinished ->
+                    showInAppNotification("Turnamen Selesai", "Semua ronde telah dimainkan. Cek klasemen akhir.")
+                is AdvanceResult.Blocked ->
+                    showInAppNotification("Belum Bisa Lanjut", res.reason)
+            }
         }
     }
 
     fun addNewPlayer(name: String, handle: String, bandaiUid: String) {
         viewModelScope.launch {
             val cleanHandle = if (handle.isBlank() || handle.trim() == "-") "-" else if (handle.startsWith("@")) handle.trim() else "@${handle.trim()}"
-            val cleanUid = if (bandaiUid.isBlank() || bandaiUid.trim() == "-") "-" else bandaiUid.trim()
+            val cleanUid = CsvHelper.cleanBandaiUid(bandaiUid)
 
             val currentPlayers = repository.getAllPlayersList()
             if (cleanHandle != "-") {
@@ -528,12 +538,15 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
                 organizerId = organizerId,
                 organizerName = organizerName,
                 selectedPlayerIds = selectedPlayerIds
-            )
-            val formatLabel = if (matchFormat.equals("BO1", ignoreCase = true)) "Best of 1 (1 Game)" else "Best of 3"
-            showInAppNotification(
-                "Turnamen Baru Dibuat",
-                "$name diselenggarakan oleh $organizerName format $formatLabel dengan $totalRounds ronde."
-            )
+            ).onSuccess {
+                val formatLabel = if (matchFormat.equals("BO1", ignoreCase = true)) "Best of 1 (1 Game)" else "Best of 3"
+                showInAppNotification(
+                    "Turnamen Baru Dibuat",
+                    "$name diselenggarakan oleh $organizerName format $formatLabel dengan $totalRounds ronde."
+                )
+            }.onFailure {
+                showInAppNotification("Gagal Membuat Turnamen", it.message ?: "Terjadi kesalahan.")
+            }
         }
     }
 
@@ -582,10 +595,53 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
 
     fun importPlayers(players: List<PlayerEntity>) {
         viewModelScope.launch {
-            players.forEach { p ->
-                repository.addPlayer(p)
+            if (players.isEmpty()) {
+                showInAppNotification("Import Gagal", "Tidak ada data peserta yang valid dalam file CSV.")
+                return@launch
             }
-            showInAppNotification("Import Berhasil", "${players.size} pemain telah ditambahkan.")
+            val currentPlayers = repository.getAllPlayersList()
+            var addedCount = 0
+            var skippedCount = 0
+
+            players.forEach { p ->
+                val name = p.name.trim()
+                if (name.isBlank()) {
+                    skippedCount++
+                    return@forEach
+                }
+
+                val cleanHandle = if (p.handle.isBlank() || p.handle.trim() == "-") "-" else if (p.handle.startsWith("@")) p.handle.trim() else "@${p.handle.trim()}"
+                val cleanUid = CsvHelper.cleanBandaiUid(p.bandaiUid)
+
+                val isDupHandle = cleanHandle != "-" && currentPlayers.any {
+                    it.handle.removePrefix("@") != "-" && it.handle.removePrefix("@").equals(cleanHandle.removePrefix("@"), ignoreCase = true)
+                }
+                val isDupUid = cleanUid != "-" && currentPlayers.any {
+                    it.bandaiUid != "-" && it.bandaiUid.equals(cleanUid, ignoreCase = true)
+                }
+
+                if (isDupHandle || isDupUid) {
+                    skippedCount++
+                } else {
+                    val toAdd = p.copy(
+                        name = name,
+                        handle = cleanHandle,
+                        bandaiUid = cleanUid,
+                        deckArchetype = p.deckArchetype.trim().ifBlank { "Unknown" },
+                        deckColor = p.deckColor.trim().ifBlank { "UNKNOWN" },
+                        avatarId = (1..8).random()
+                    )
+                    repository.addPlayer(toAdd)
+                    addedCount++
+                }
+            }
+
+            val msg = if (skippedCount > 0) {
+                "$addedCount peserta berhasil ditambahkan ($skippedCount dilewati karena UID/Handle duplikat)."
+            } else {
+                "$addedCount peserta berhasil ditambahkan ke turnamen."
+            }
+            showInAppNotification("Import Selesai", msg)
         }
     }
 
@@ -627,6 +683,4 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     fun getTournamentAnalytics(players: List<PlayerEntity>, matches: List<MatchEntity>): OverallTournamentAnalytics {
         return AnalyticsEngine.analyzeTournament(players, matches)
     }
-
-
 }

@@ -134,11 +134,61 @@ class ExampleRobolectricTest {
       roundNumber = 1,
       players = players,
       pastMatches = emptyList()
-    )
+    ).matches
 
     assertEquals(3, matches.size)
     val pairedIds = matches.flatMap { listOfNotNull(it.player1Id, it.player2Id) }
     assertEquals(6, pairedIds.distinct().size)
+  }
+
+  @Test
+  fun `verify match reporting and advance round`() = kotlinx.coroutines.test.runTest {
+    val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+    val repository = com.example.data.repository.TournamentRepository(context)
+    val db = com.example.data.local.DigiSwissDatabase.getDatabase(context)
+
+    val playerIds = (1..16).map { i ->
+      db.playerDao().insertPlayer(
+        PlayerEntity(id = 0, name = "Player $i", handle = "@p$i", bandaiUid = "000$i", deckArchetype = "Deck", deckColor = "RED")
+      )
+    }
+
+    val tourneyIdResult = repository.createNewTournament(
+      name = "Tamer Battle",
+      dateText = "2026-09-18",
+      rounds = 4,
+      roundDuration = 30,
+      location = "Store A",
+      matchFormat = "BO1",
+      selectedPlayerIds = playerIds
+    )
+    val tourneyId = tourneyIdResult.getOrThrow()
+
+    val matches = db.matchDao().getMatchesForRound(tourneyId, 1)
+    assertEquals(8, matches.size)
+
+    for (m in matches) {
+      val res = repository.reportMatchScore(
+        matchId = m.id,
+        p1Score = 1,
+        p2Score = 0,
+        isDraw = false,
+        winnerId = m.player1Id,
+        durationMinutes = 15,
+        firstTurnPlayerId = m.player1Id
+      )
+      assertTrue(res.isSuccess)
+    }
+
+    val updatedMatches = db.matchDao().getMatchesForRound(tourneyId, 1)
+    assertEquals(8, updatedMatches.size)
+    assertTrue(updatedMatches.all { it.isReported })
+
+    val advanceResult = repository.advanceToNextRound(tourneyId, 1)
+    assertTrue(advanceResult is com.example.data.repository.AdvanceResult.Success)
+
+    val round2Matches = db.matchDao().getMatchesForRound(tourneyId, 2)
+    assertEquals(8, round2Matches.size)
   }
 }
 

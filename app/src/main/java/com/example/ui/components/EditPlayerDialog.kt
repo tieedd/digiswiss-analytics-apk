@@ -160,29 +160,29 @@ fun EditPlayerDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // UID input (Optional, exactly 10 digits, allows starting with 0)
+                // UID input (Tipe data karakter/teks, tepat 10 karakter, mempertahankan angka 0 di depan)
                 OutlinedTextField(
                     value = bandaiUid,
                     onValueChange = { input ->
-                        if (input.length <= 10 && input.all { it.isDigit() }) {
+                        if (input.length <= 10) {
                             bandaiUid = input
                             errorMessage = null
                         }
                     },
-                    label = { Text("UID Bandai+ (Opsional - Tepat 10 Digit)", color = TextMuted) },
+                    label = { Text("UID Bandai+ (Teks/Karakter Tepat 10 Karakter)", color = TextMuted) },
                     placeholder = { Text("Contoh: 0698987569 atau kosongkan", color = TextMuted.copy(alpha = 0.5f)) },
                     supportingText = {
                         Text(
                             text = if (bandaiUid.isBlank()) {
                                 "Opsional (tersimpan sebagai '-')"
                             } else {
-                                "${bandaiUid.length}/10 digit ${if (bandaiUid.length == 10) "✓ (Tepat)" else "(Wajib tepat 10 digit)"}"
+                                "${bandaiUid.length}/10 karakter ${if (bandaiUid.length == 10) "✓ (Tepat)" else "(Wajib tepat 10 karakter)"}"
                             },
                             color = if (bandaiUid.isNotBlank() && bandaiUid.length < 10) DigiGold else if (bandaiUid.length == 10) DigiCyan else TextMuted,
                             fontSize = 11.sp
                         )
                     },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -293,7 +293,7 @@ fun EditPlayerDialog(
                             val trimmedUid = bandaiUid.trim()
                             if (trimmedUid.isNotEmpty() && trimmedUid != "-") {
                                 if (trimmedUid.length != 10) {
-                                    errorMessage = "UID Bandai+ harus tepat 10 karakter angka (tidak boleh kurang atau lebih)."
+                                    errorMessage = "UID Bandai+ harus tepat 10 karakter (tidak boleh kurang atau lebih)."
                                     return@Button
                                 }
                             }

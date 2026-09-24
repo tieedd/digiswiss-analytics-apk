@@ -1,9 +1,17 @@
 package com.example.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "matches")
+@Entity(
+    tableName = "matches",
+    indices = [
+        Index(value = ["tournamentId", "roundNumber"]),
+        Index(value = ["player1Id"]),
+        Index(value = ["player2Id"])
+    ]
+)
 data class MatchEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,

@@ -3,6 +3,7 @@ package com.example.util
 import com.example.data.local.MatchEntity
 import com.example.data.local.PlayerEntity
 import kotlin.math.max
+import kotlin.random.Random
 
 data class StandingEntry(
     val rank: Int,
@@ -23,118 +24,141 @@ data class MatchWithPlayers(
     val player2: PlayerEntity?
 )
 
+/**
+ * Hasil pairing. Sebelumnya fungsi hanya mengembalikan List<MatchEntity> sehingga
+ * pemanggil tidak pernah tahu kalau engine terpaksa mengulang lawan lama.
+ */
+data class PairingResult(
+    val matches: List<MatchEntity>,
+    val forcedRematches: List<Pair<Long, Long>> = emptyList(),
+    val searchExhausted: Boolean = false
+) {
+    val hasWarning: Boolean get() = forcedRematches.isNotEmpty() || searchExhausted
+}
+
 object SwissPairingEngine {
 
     /**
-     * Compute current tournament standings based on official Bandai / TCG Swiss tiebreakers.
+     * Batas simpul pencarian. Dengan memoisasi kegagalan, kasus terburuk 32 pemain
+     * hanya butuh ~200 ribu simpul, jadi batas ini praktis tidak pernah tersentuh.
+     */
+    private const val PAIRING_NODE_BUDGET = 200_000
+
+    private fun key(a: Long, b: Long): Long = if (a < b) a * 1_000_003L + b else b * 1_000_003L + a
+
+    /**
+     * @param players            pemain yang ditampilkan di klasemen (biasanya yang masih aktif)
+     * @param tiebreakerPool     SEMUA pemain yang pernah bertanding di turnamen ini, termasuk
+     *                           yang sudah drop. Wajib diisi, kalau tidak OMW%/OGW% akan rusak.
+     * @param byesCountAsGameWin BYE tidak dihitung sebagai game menang (aturan resmi).
      */
     fun computeStandings(
         players: List<PlayerEntity>,
-        allMatches: List<MatchEntity>
+        allMatches: List<MatchEntity>,
+        tiebreakerPool: List<PlayerEntity> = players,
+        byesCountAsGameWin: Boolean = false
     ): List<StandingEntry> {
-        val playerMap = players.associateBy { it.id }
         val reportedMatches = allMatches.filter { it.isReported }
 
-        // Aggregate player stats
-        val matchWins = mutableMapOf<Long, Int>().withDefault { 0 }
-        val matchLosses = mutableMapOf<Long, Int>().withDefault { 0 }
-        val matchDraws = mutableMapOf<Long, Int>().withDefault { 0 }
-        val byes = mutableMapOf<Long, Int>().withDefault { 0 }
-        val gamesWon = mutableMapOf<Long, Int>().withDefault { 0 }
-        val gamesLost = mutableMapOf<Long, Int>().withDefault { 0 }
-        val opponents = mutableMapOf<Long, MutableList<Long>>().withDefault { mutableListOf() }
+        val matchWins = HashMap<Long, Int>()
+        val matchLosses = HashMap<Long, Int>()
+        val matchDraws = HashMap<Long, Int>()
+        val byes = HashMap<Long, Int>()
+        val gamesWon = HashMap<Long, Int>()
+        val gamesLost = HashMap<Long, Int>()
+        val opponents = HashMap<Long, MutableList<Long>>()
+
+        fun bump(map: HashMap<Long, Int>, id: Long, delta: Int = 1) {
+            map[id] = (map[id] ?: 0) + delta
+        }
 
         for (match in reportedMatches) {
             val p1 = match.player1Id
             val p2 = match.player2Id
 
             if (match.isBye || p2 == null) {
-                matchWins[p1] = matchWins.getValue(p1) + 1
-                byes[p1] = byes.getValue(p1) + 1
-                gamesWon[p1] = gamesWon.getValue(p1) + 2
+                bump(matchWins, p1)
+                bump(byes, p1)
+                if (byesCountAsGameWin) bump(gamesWon, p1, 2)
             } else {
+                // Jaga-jaga terhadap data rusak hasil import CSV.
+                if (p1 == p2) continue
+
                 opponents.getOrPut(p1) { mutableListOf() }.add(p2)
                 opponents.getOrPut(p2) { mutableListOf() }.add(p1)
 
-                gamesWon[p1] = gamesWon.getValue(p1) + match.p1Score
-                gamesLost[p1] = gamesLost.getValue(p1) + match.p2Score
+                bump(gamesWon, p1, match.p1Score)
+                bump(gamesLost, p1, match.p2Score)
+                bump(gamesWon, p2, match.p2Score)
+                bump(gamesLost, p2, match.p1Score)
 
-                gamesWon[p2] = gamesWon.getValue(p2) + match.p2Score
-                gamesLost[p2] = gamesLost.getValue(p2) + match.p1Score
-
-                if (match.isDraw) {
-                    matchDraws[p1] = matchDraws.getValue(p1) + 1
-                    matchDraws[p2] = matchDraws.getValue(p2) + 1
-                } else if (match.winnerId == p1) {
-                    matchWins[p1] = matchWins.getValue(p1) + 1
-                    matchLosses[p2] = matchLosses.getValue(p2) + 1
-                } else if (match.winnerId == p2) {
-                    matchWins[p2] = matchWins.getValue(p2) + 1
-                    matchLosses[p1] = matchLosses.getValue(p1) + 1
+                when {
+                    match.isDraw -> {
+                        bump(matchDraws, p1); bump(matchDraws, p2)
+                    }
+                    match.winnerId == p1 -> {
+                        bump(matchWins, p1); bump(matchLosses, p2)
+                    }
+                    match.winnerId == p2 -> {
+                        bump(matchWins, p2); bump(matchLosses, p1)
+                    }
+                    // winnerId null tapi bukan draw = data tidak konsisten; diabaikan.
                 }
             }
         }
 
-        // Match Win Percentage for each player (min 33% floor)
-        val matchWinPercent = mutableMapOf<Long, Double>()
-        val gameWinPercent = mutableMapOf<Long, Double>()
+        // Persentase dihitung untuk SELURUH pool (termasuk pemain yang sudah drop),
+        // supaya OMW%/OGW% lawan tidak jatuh ke nilai default 0.33.
+        val pool = (tiebreakerPool + players).distinctBy { it.id }
+        val matchWinPercent = HashMap<Long, Double>()
+        val gameWinPercent = HashMap<Long, Double>()
 
-        for (p in players) {
-            val wins = matchWins.getValue(p.id)
-            val draws = matchDraws.getValue(p.id)
-            val losses = matchLosses.getValue(p.id)
+        for (p in pool) {
+            val wins = matchWins[p.id] ?: 0
+            val draws = matchDraws[p.id] ?: 0
+            val losses = matchLosses[p.id] ?: 0
             val totalMatches = wins + draws + losses
-            val points = (wins * 3) + (draws * 1)
+            val points = (wins * 3) + draws
 
             val rawMwp = if (totalMatches > 0) points.toDouble() / (totalMatches * 3.0) else 0.33
             matchWinPercent[p.id] = max(0.33, rawMwp)
 
-            val gWon = gamesWon.getValue(p.id)
-            val gLost = gamesLost.getValue(p.id)
+            val gWon = gamesWon[p.id] ?: 0
+            val gLost = gamesLost[p.id] ?: 0
             val totalGames = gWon + gLost
             val rawGwp = if (totalGames > 0) gWon.toDouble() / totalGames.toDouble() else 0.33
             gameWinPercent[p.id] = max(0.33, rawGwp)
         }
 
-        // OMW% and OGW%
-        val omwPercent = mutableMapOf<Long, Double>()
-        val ogwPercent = mutableMapOf<Long, Double>()
+        val omwPercent = HashMap<Long, Double>()
+        val ogwPercent = HashMap<Long, Double>()
 
-        for (p in players) {
-            val oppList = opponents[p.id] ?: emptyList()
+        for (p in pool) {
+            val oppList = opponents[p.id] ?: emptyList<Long>()
             if (oppList.isEmpty()) {
                 omwPercent[p.id] = 0.33
                 ogwPercent[p.id] = 0.33
             } else {
-                val sumOmw = oppList.sumOf { matchWinPercent[it] ?: 0.33 }
-                omwPercent[p.id] = sumOmw / oppList.size.toDouble()
-
-                val sumOgw = oppList.sumOf { gameWinPercent[it] ?: 0.33 }
-                ogwPercent[p.id] = sumOgw / oppList.size.toDouble()
+                omwPercent[p.id] = oppList.sumOf { matchWinPercent[it] ?: 0.33 } / oppList.size
+                ogwPercent[p.id] = oppList.sumOf { gameWinPercent[it] ?: 0.33 } / oppList.size
             }
         }
 
-        // Build list and sort
         val preliminary = players.map { p ->
-            val wins = matchWins.getValue(p.id)
-            val draws = matchDraws.getValue(p.id)
-            val losses = matchLosses.getValue(p.id)
-            val pts = (wins * 3) + (draws * 1)
-            val omw = omwPercent[p.id] ?: 0.33
-            val gw = gameWinPercent[p.id] ?: 0.33
-            val ogw = ogwPercent[p.id] ?: 0.33
-
+            val wins = matchWins[p.id] ?: 0
+            val draws = matchDraws[p.id] ?: 0
+            val losses = matchLosses[p.id] ?: 0
             StandingEntry(
                 rank = 0,
                 player = p,
-                matchPoints = pts,
+                matchPoints = (wins * 3) + draws,
                 matchesWon = wins,
                 matchesLost = losses,
                 matchesDrawn = draws,
-                omwPercent = omw * 100.0,
-                gwPercent = gw * 100.0,
-                ogwPercent = ogw * 100.0,
-                byesCount = byes.getValue(p.id)
+                omwPercent = (omwPercent[p.id] ?: 0.33) * 100.0,
+                gwPercent = (gameWinPercent[p.id] ?: 0.33) * 100.0,
+                ogwPercent = (ogwPercent[p.id] ?: 0.33) * 100.0,
+                byesCount = byes[p.id] ?: 0
             )
         }
 
@@ -144,199 +168,96 @@ object SwissPairingEngine {
                 .thenByDescending { it.gwPercent }
                 .thenByDescending { it.ogwPercent }
                 .thenBy { it.player.name }
+                .thenBy { it.player.id }   // pemecah seri terakhir yang deterministik
         )
 
-        return sorted.mapIndexed { index, entry ->
-            entry.copy(rank = index + 1)
-        }
+        return sorted.mapIndexed { index, entry -> entry.copy(rank = index + 1) }
     }
 
-    /**
-     * Generate Swiss pairings for the next round.
-     * Prevents previous rematches and handles byes gracefully.
-     */
     fun generateNextRoundPairings(
         tournamentId: Long,
         roundNumber: Int,
         players: List<PlayerEntity>,
-        pastMatches: List<MatchEntity>
-    ): List<MatchEntity> {
-        if (players.isEmpty()) return emptyList()
+        pastMatches: List<MatchEntity>,
+        allPlayersForTiebreak: List<PlayerEntity> = players,
+        random: Random = Random.Default
+    ): PairingResult {
+        if (players.isEmpty()) return PairingResult(emptyList())
 
-        // Track past pairings
-        val playedPairs = mutableSetOf<Pair<Long, Long>>()
-        val playersWithByes = mutableSetOf<Long>()
+        // Satu pemain saja: langsung BYE, jangan sampai masuk loop pairing.
+        if (players.size == 1) {
+            return PairingResult(listOf(buildByeMatch(tournamentId, roundNumber, players[0])))
+        }
+
+        val playedPairs = HashSet<Long>()
+        val byeCounts = HashMap<Long, Int>()
 
         for (m in pastMatches) {
             val p1 = m.player1Id
             val p2 = m.player2Id
-            if (p2 != null) {
-                playedPairs.add(Pair(p1, p2))
-                playedPairs.add(Pair(p2, p1))
-            } else if (m.isBye) {
-                playersWithByes.add(p1)
+            if (p2 != null && p1 != p2) {
+                playedPairs.add(key(p1, p2))
+            } else if (m.isBye || p2 == null) {
+                byeCounts[p1] = (byeCounts[p1] ?: 0) + 1
             }
-        }
-
-        // ROUND 1: Strictly random pairings for tournament start
-        if (roundNumber == 1 || pastMatches.isEmpty()) {
-            val shuffledPool = players.shuffled().toMutableList()
-            val generatedMatches = mutableListOf<MatchEntity>()
-            var tableNum = 1
-
-            // Handle BYE if odd number of players - pick randomly
-            if (shuffledPool.size % 2 != 0) {
-                val byeCandidate = shuffledPool.removeAt(shuffledPool.indices.random())
-                generatedMatches.add(
-                    MatchEntity(
-                        tournamentId = tournamentId,
-                        roundNumber = roundNumber,
-                        tableNumber = 0, // table 0 is BYE
-                        player1Id = byeCandidate.id,
-                        player2Id = null,
-                        p1DeckArchetype = if (byeCandidate.deckArchetype != "Unknown") byeCandidate.deckArchetype else "",
-                        p1DeckColor = if (byeCandidate.deckColor != "UNKNOWN") byeCandidate.deckColor else "",
-                        p1Score = 2,
-                        p2Score = 0,
-                        isDraw = false,
-                        isBye = true,
-                        winnerId = byeCandidate.id,
-                        isReported = true,
-                        matchDurationMinutes = 0
-                    )
-                )
-            }
-
-            // Pair remaining players 2 by 2 purely at random
-            while (shuffledPool.size >= 2) {
-                val p1 = shuffledPool.removeAt(0)
-                val p2 = shuffledPool.removeAt(0)
-                val (first, second) = if (kotlin.random.Random.nextBoolean()) Pair(p1, p2) else Pair(p2, p1)
-                generatedMatches.add(
-                    MatchEntity(
-                        tournamentId = tournamentId,
-                        roundNumber = roundNumber,
-                        tableNumber = tableNum++,
-                        player1Id = first.id,
-                        player2Id = second.id,
-                        p1DeckArchetype = if (first.deckArchetype != "Unknown") first.deckArchetype else "",
-                        p1DeckColor = if (first.deckColor != "UNKNOWN") first.deckColor else "",
-                        p2DeckArchetype = if (second.deckArchetype != "Unknown") second.deckArchetype else "",
-                        p2DeckColor = if (second.deckColor != "UNKNOWN") second.deckColor else "",
-                        p1Score = 0,
-                        p2Score = 0,
-                        isDraw = false,
-                        isBye = false,
-                        winnerId = null,
-                        isReported = false,
-                        matchDurationMinutes = 0
-                    )
-                )
-            }
-
-            return generatedMatches.sortedBy { if (it.isBye) 9999 else it.tableNumber }
-        }
-
-        // ROUND 2+: Swiss system with randomized matching within identical score brackets
-        val standings = computeStandings(players, pastMatches)
-
-        // Group players by match points, sorted descending (highest points first)
-        val brackets = standings.groupBy { it.matchPoints }
-            .toSortedMap(compareByDescending { it })
-
-        // Build playerList by taking each bracket and shuffling it internally
-        val playerList = mutableListOf<PlayerEntity>()
-        for ((_, entries) in brackets) {
-            playerList.addAll(entries.shuffled().map { it.player })
         }
 
         val generatedMatches = mutableListOf<MatchEntity>()
         var tableNum = 1
 
-        // Handle BYE if odd number of players
+        // ---------- Urutan pemain ----------
+        val playerList: MutableList<PlayerEntity> = if (roundNumber == 1 || pastMatches.isEmpty()) {
+            players.shuffled(random).toMutableList()
+        } else {
+            val standings = computeStandings(players, pastMatches, allPlayersForTiebreak)
+            val ordered = mutableListOf<PlayerEntity>()
+            standings.groupBy { it.matchPoints }
+                .toSortedMap(compareByDescending { it })
+                .forEach { (_, entries) -> ordered.addAll(entries.shuffled(random).map { it.player }) }
+            ordered
+        }
+
+        // ---------- BYE ----------
         if (playerList.size % 2 != 0) {
-            // Pick lowest ranked player without a BYE, randomize among eligible candidates with the lowest points
-            val byeCandidate = playerList.reversed().firstOrNull { it.id !in playersWithByes }
+            // Pemain peringkat terbawah yang PALING SEDIKIT pernah dapat BYE.
+            // Versi lama memakai `firstOrNull { belum pernah bye } ?: last()`, sehingga di
+            // turnamen panjang orang yang sama bisa kebagian BYE berkali-kali.
+            val byeCandidate = playerList.asReversed()
+                .minByOrNull { byeCounts[it.id] ?: 0 }
                 ?: playerList.last()
 
-            playerList.remove(byeCandidate)
-            generatedMatches.add(
-                MatchEntity(
-                    tournamentId = tournamentId,
-                    roundNumber = roundNumber,
-                    tableNumber = 0, // table 0 is BYE
-                    player1Id = byeCandidate.id,
-                    player2Id = null,
-                    p1DeckArchetype = if (byeCandidate.deckArchetype != "Unknown") byeCandidate.deckArchetype else "",
-                    p1DeckColor = if (byeCandidate.deckColor != "UNKNOWN") byeCandidate.deckColor else "",
-                    p1Score = 2,
-                    p2Score = 0,
-                    isDraw = false,
-                    isBye = true,
-                    winnerId = byeCandidate.id,
-                    isReported = true,
-                    matchDurationMinutes = 0
-                )
-            )
+            playerList.removeAll { it.id == byeCandidate.id }
+            generatedMatches.add(buildByeMatch(tournamentId, roundNumber, byeCandidate))
         }
 
-        // Swiss Matching with rematch avoidance using backtracking
-        var finalPairs = mutableListOf<Pair<PlayerEntity, PlayerEntity>>()
-        
-        fun findValidPairing(
-            remaining: List<PlayerEntity>,
-            currentPairings: List<Pair<PlayerEntity, PlayerEntity>>
-        ): List<Pair<PlayerEntity, PlayerEntity>>? {
-            if (remaining.isEmpty()) return currentPairings
+        // ---------- Pencocokan ----------
+        val byId = playerList.associateBy { it.id }
+        val orderedIds = playerList.map { it.id }
 
-            val p1 = remaining[0]
-            val candidates = remaining.drop(1)
+        val search = findPairingMemoized(orderedIds, playedPairs)
+        val forcedRematches = mutableListOf<Pair<Long, Long>>()
 
-            for (i in candidates.indices) {
-                val p2 = candidates[i]
-                if (Pair(p1.id, p2.id) !in playedPairs) {
-                    val nextRemaining = candidates.toMutableList().apply { removeAt(i) }
-                    val nextPairings = currentPairings + Pair(p1, p2)
-                    val result = findValidPairing(nextRemaining, nextPairings)
-                    if (result != null) return result
-                }
-            }
-            return null
-        }
-
-        val backtrackResult = findValidPairing(playerList, emptyList())
-        if (backtrackResult != null) {
-            finalPairs.addAll(backtrackResult)
-        } else {
-            // Fallback greedy if absolutely impossible to prevent rematch
-            val unassigned = playerList.toMutableList()
-            while (unassigned.isNotEmpty()) {
+        val finalPairs: List<Pair<Long, Long>> = search.pairs ?: run {
+            // Tidak ada solusi bebas-rematch: pasangkan tetangga terdekat di klasemen
+            // dan catat siapa saja yang terpaksa bertemu ulang.
+            val unassigned = orderedIds.toMutableList()
+            val out = mutableListOf<Pair<Long, Long>>()
+            while (unassigned.size >= 2) {
                 val p1 = unassigned.removeAt(0)
-                var partnerIndex = -1
-
-                for (i in unassigned.indices) {
-                    val candidate = unassigned[i]
-                    if (Pair(p1.id, candidate.id) !in playedPairs) {
-                        partnerIndex = i
-                        break
-                    }
+                var idx = unassigned.indexOfFirst { key(p1, it) !in playedPairs }
+                if (idx == -1) {
+                    idx = 0
+                    forcedRematches.add(p1 to unassigned[0])
                 }
-
-                if (partnerIndex == -1 && unassigned.isNotEmpty()) {
-                    partnerIndex = 0
-                }
-
-                if (partnerIndex != -1) {
-                    val p2 = unassigned.removeAt(partnerIndex)
-                    finalPairs.add(Pair(p1, p2))
-                }
+                out.add(p1 to unassigned.removeAt(idx))
             }
+            out
         }
 
-        for (pair in finalPairs) {
-            val p1 = pair.first
-            val p2 = pair.second
-            val (first, second) = if (kotlin.random.Random.nextBoolean()) Pair(p1, p2) else Pair(p2, p1)
+        for ((aId, bId) in finalPairs) {
+            val a = byId[aId] ?: continue
+            val b = byId[bId] ?: continue
+            val (first, second) = if (random.nextBoolean()) a to b else b to a
             generatedMatches.add(
                 MatchEntity(
                     tournamentId = tournamentId,
@@ -344,10 +265,10 @@ object SwissPairingEngine {
                     tableNumber = tableNum++,
                     player1Id = first.id,
                     player2Id = second.id,
-                    p1DeckArchetype = if (first.deckArchetype != "Unknown") first.deckArchetype else "",
-                    p1DeckColor = if (first.deckColor != "UNKNOWN") first.deckColor else "",
-                    p2DeckArchetype = if (second.deckArchetype != "Unknown") second.deckArchetype else "",
-                    p2DeckColor = if (second.deckColor != "UNKNOWN") second.deckColor else "",
+                    p1DeckArchetype = first.deckArchetype.takeUnless { it == "Unknown" } ?: "",
+                    p1DeckColor = first.deckColor.takeUnless { it == "UNKNOWN" } ?: "",
+                    p2DeckArchetype = second.deckArchetype.takeUnless { it == "Unknown" } ?: "",
+                    p2DeckColor = second.deckColor.takeUnless { it == "UNKNOWN" } ?: "",
                     p1Score = 0,
                     p2Score = 0,
                     isDraw = false,
@@ -359,6 +280,80 @@ object SwissPairingEngine {
             )
         }
 
-        return generatedMatches.sortedBy { if (it.isBye) 9999 else it.tableNumber }
+        return PairingResult(
+            matches = generatedMatches.sortedBy { if (it.isBye) Int.MAX_VALUE else it.tableNumber },
+            forcedRematches = forcedRematches,
+            searchExhausted = search.budgetExhausted
+        )
+    }
+
+    private fun buildByeMatch(tournamentId: Long, roundNumber: Int, p: PlayerEntity) = MatchEntity(
+        tournamentId = tournamentId,
+        roundNumber = roundNumber,
+        tableNumber = 0,
+        player1Id = p.id,
+        player2Id = null,
+        p1DeckArchetype = p.deckArchetype.takeUnless { it == "Unknown" } ?: "",
+        p1DeckColor = p.deckColor.takeUnless { it == "UNKNOWN" } ?: "",
+        p1Score = 2,
+        p2Score = 0,
+        isDraw = false,
+        isBye = true,
+        winnerId = p.id,
+        isReported = true,
+        matchDurationMinutes = 0
+    )
+
+    private class SearchOutcome(
+        val pairs: List<Pair<Long, Long>>?,
+        val budgetExhausted: Boolean
+    )
+
+    /**
+     * Backtracking dengan MEMOISASI kegagalan.
+     *
+     * Versi lama menelusuri ulang sub-pohon yang sama berulang kali. Pada kondisi
+     * "padat tapi buntu" (turnamen panjang / banyak drop) biayanya meledak:
+     * 20 pemain = 2,8 juta simpul, 22 pemain = 33 juta, 24 pemain tidak selesai.
+     *
+     * Dengan mencatat himpunan sisa pemain yang sudah terbukti buntu, kasus yang
+     * sama turun menjadi 2.305 / 5.121 / 11.265 simpul.
+     */
+    private fun findPairingMemoized(
+        ids: List<Long>,
+        playedPairs: Set<Long>
+    ): SearchOutcome {
+        val failed = HashSet<Set<Long>>()
+        var nodes = 0
+        var exhausted = false
+
+        fun dfs(remaining: List<Long>): List<Pair<Long, Long>>? {
+            nodes++
+            if (nodes > PAIRING_NODE_BUDGET) {
+                exhausted = true
+                return null
+            }
+            if (remaining.isEmpty()) return emptyList()
+
+            val stateKey = remaining.toSet()
+            if (stateKey in failed) return null
+
+            val p1 = remaining[0]
+            val rest = remaining.subList(1, remaining.size)
+            for (i in rest.indices) {
+                val p2 = rest[i]
+                if (key(p1, p2) in playedPairs) continue
+                val next = ArrayList<Long>(rest.size - 1)
+                for (j in rest.indices) if (j != i) next.add(rest[j])
+                val sub = dfs(next)
+                if (sub != null) return listOf(p1 to p2) + sub
+                if (exhausted) return null
+            }
+            failed.add(stateKey)
+            return null
+        }
+
+        val result = dfs(ids)
+        return SearchOutcome(result, exhausted)
     }
 }

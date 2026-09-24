@@ -56,6 +56,7 @@ import com.example.util.CsvHelper
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import androidx.compose.ui.unit.sp
 import com.example.data.local.PlayerEntity
 import com.example.data.local.MatchEntity
@@ -106,6 +107,7 @@ fun PlayersScreen(
             players.filter {
                 it.name.contains(searchQuery, ignoreCase = true) ||
                         it.handle.contains(searchQuery, ignoreCase = true) ||
+                        it.bandaiUid.contains(searchQuery, ignoreCase = true) ||
                         it.deckArchetype.contains(searchQuery, ignoreCase = true)
             }
         }
@@ -160,22 +162,44 @@ fun PlayersScreen(
                         }
 
                         if (currentUser?.isAdmin == true || currentUser?.isOrganizer == true) {
-                            Row {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(
                                     onClick = { 
-                                        val csv = CsvHelper.exportPlayersToCsv(players)
-                                        CsvHelper.shareCsv(context, csv, "Peserta_DigiSwiss")
+                                        if (players.isEmpty()) {
+                                            Toast.makeText(context, "Tidak ada data peserta untuk diekspor", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            val csv = CsvHelper.exportPlayersToCsv(players)
+                                            CsvHelper.shareCsv(context, csv, "Peserta_DigiSwiss")
+                                        }
                                     },
-                                    modifier = Modifier.size(36.dp).background(DigiGold.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(DigiGold.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                        .testTag("export_players_button")
                                 ) {
-                                    Icon(Icons.Default.Download, contentDescription = "Export CSV", tint = DigiGold, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Download, contentDescription = "Export CSV Peserta", tint = DigiGold, modifier = Modifier.size(18.dp))
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 IconButton(
-                                    onClick = { importLauncher.launch(arrayOf("text/*", "text/csv", "application/csv")) },
-                                    modifier = Modifier.size(36.dp).background(DigiCyan.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    onClick = {
+                                        importLauncher.launch(
+                                            arrayOf(
+                                                "text/*",
+                                                "text/csv",
+                                                "text/comma-separated-values",
+                                                "application/csv",
+                                                "application/vnd.ms-excel",
+                                                "application/octet-stream",
+                                                "*/*"
+                                            )
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(DigiCyan.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                        .testTag("import_players_button")
                                 ) {
-                                    Icon(Icons.Default.Upload, contentDescription = "Import CSV", tint = DigiCyan, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Upload, contentDescription = "Import CSV Peserta", tint = DigiCyan, modifier = Modifier.size(18.dp))
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
